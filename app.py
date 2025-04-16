@@ -136,11 +136,43 @@ def upload_file():
             # **Statistics Table**
             stats_table = df[numeric_cols].describe().transpose()
             stats_table["Missing Rows"] = df[numeric_cols].isnull().sum()
-            stats_table["Duplicates"] = df[numeric_cols].apply(lambda x: x.duplicated().sum())  
+            stats_table["Duplicates"] = df[numeric_cols].apply(lambda x: x.duplicated().sum()) 
+
+            # Step 1: Detect frequency using the first column (assumed time)
+            time_col = df.columns[0]  # First column is assumed to be time
+            try:
+                df[time_col] = pd.to_datetime(df[time_col])
+                df = df.sort_values(by=time_col)
+                time_diffs = df[time_col].diff().dropna()
+                most_common_diff = time_diffs.mode()[0]
+
+                # Step 2: Classify frequency
+                if most_common_diff <= pd.Timedelta(seconds=1):
+                    inferred_freq = "Secondly"
+                elif most_common_diff <= pd.Timedelta(minutes=1):
+                    inferred_freq = "Minutely"
+                elif most_common_diff <= pd.Timedelta(hours=1):
+                    inferred_freq = "Hourly"
+                elif most_common_diff <= pd.Timedelta(days=1):
+                    inferred_freq = "Daily"
+                elif most_common_diff <= pd.Timedelta(weeks=1):
+                    inferred_freq = "Weekly"
+                else:
+                    inferred_freq = "Monthly or Irregular"
+
+            except Exception as e:
+                inferred_freq = "Unknown"
+
+            # Step 3: Add Frequency row to stats_table (as a new summary row)
+            # Add 'Frequency' as a new column (not a row!)
+            stats_table["Frequency"] = inferred_freq
+
+
+ 
             stats_table = stats_table.rename(columns={"std": "Standard Deviation", "50%": "Median"})
 
             stats_table = stats_table[[
-                "count", "Missing Rows", "Duplicates", "mean", "Standard Deviation", "min", "25%", "Median", "75%", "max"
+                "count", "Missing Rows", "Duplicates", "Frequency" , "mean", "Standard Deviation", "min", "25%", "Median", "75%", "max"
             ]]
             stats_table_html = stats_table.to_html(classes="table table-bordered")
 
