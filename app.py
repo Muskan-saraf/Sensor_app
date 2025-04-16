@@ -27,7 +27,7 @@ import pickle  # already installed with pandas
 
 
 
-
+# safe_filename
 app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
@@ -66,6 +66,36 @@ def calculate_psi(expected, actual, buckets=10):
     psi_values = np.nan_to_num(psi_values)  # Handle divide-by-zero errors
     
     return np.sum(psi_values)
+
+def plot_anomalies(df, time_col, value_col, anomaly_col, save_path='static/anomalies.png'):
+    plt.figure(figsize=(12, 6))
+    
+    # ✅ If time_col is not a string, treat it as index
+    if isinstance(time_col, str):
+        x_vals = df[time_col]
+        anomaly_x = df[df[anomaly_col] == 1][time_col]
+    else:
+        x_vals = df.index
+        anomaly_x = df[df[anomaly_col] == 1].index
+
+    plt.plot(x_vals, df[value_col], label='Value', color='blue')
+    plt.scatter(
+        anomaly_x,
+        df[df[anomaly_col] == 1][value_col],
+        color='red',
+        label='Anomalies',
+        zorder=5
+    )
+    plt.title('Time Series with Anomalies')
+    plt.xlabel('Time')
+    plt.ylabel('Value')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
+
+
+
 
 
 @app.route("/", methods=["GET", "POST"])
@@ -136,7 +166,9 @@ def upload_file():
                 plt.tight_layout()
                 plt.savefig(f"static/histogram_{i}.png")
                 plt.close()
-            
+
+    
+                    
             
             # Function to clean filename
             def safe_filename(name):
@@ -159,6 +191,44 @@ def upload_file():
             plt.tight_layout()
             plt.savefig("static/timeseries_stacked.png", bbox_inches="tight")
             plt.close()
+
+
+            # ==================== STACKED ANOMALY PLOTS ====================
+            fig, axes = plt.subplots(nrows=len(numeric_cols), ncols=1, figsize=(12, len(numeric_cols) * 3), sharex=True)
+
+            # Handle single subplot
+            if len(numeric_cols) == 1:
+                axes = [axes]
+
+            for idx, col in enumerate(numeric_cols):
+                df['anomaly_flag'] = 0  # Reset for each column
+
+                if df[col].dropna().shape[0] > 10:
+                    clean_df = df[[col]].dropna()
+                    model = IsolationForest(contamination=0.05, random_state=42)
+                    preds = model.fit_predict(clean_df)
+                    df.loc[clean_df.index, 'anomaly_flag'] = (preds == -1).astype(int)
+
+                    x_vals = df.index
+                    y_vals = df[col]
+                    anomaly_x = df[df['anomaly_flag'] == 1].index
+                    anomaly_y = df.loc[df['anomaly_flag'] == 1, col]
+
+                    axes[idx].plot(x_vals, y_vals, label='Value', color='blue')
+                    axes[idx].scatter(anomaly_x, anomaly_y, color='red', label='Anomalies', zorder=5)
+                    axes[idx].set_title(f"Anomalies in {col}", fontsize=10)
+                    axes[idx].tick_params(axis='y', labelsize=8)
+
+            axes[-1].set_xlabel("Time")
+            plt.tight_layout()
+            plt.savefig("static/anomalies_stacked.png", bbox_inches="tight")
+            plt.close()
+
+
+
+
+
+
             
             
             
@@ -582,7 +652,7 @@ def upload_file():
             
             # Convert to HTML for rendering
             stability_result_html = stability_result_df.to_html(classes="table table-bordered")
-            feature_stability_html = feature_stability_df.to_html(classes="table table-bordered")
+            feature_stability_html = feature_stability_df.to_html(classes="table table-bordered", index=False)
             # Save numeric column info for PDF route
             with open("temp/numeric_cols.pkl", "wb") as f:
                 pickle.dump((numeric_cols, cols_per_fig), f)
@@ -599,6 +669,7 @@ def upload_file():
                 num_cols=num_cols,
                 cols_per_fig=cols_per_fig,
                 timeseries_plot="static/timeseries_stacked.png",
+                anomaly_plot="static/anomalies_stacked.png",
                 correlation_plot="static/correlation_heatmap_large.png",
                 stability_result=stability_result_html,
                 stability_analysis=feature_stability_html)
