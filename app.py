@@ -141,6 +141,7 @@ def upload_file():
 
             # Step 1: Detect frequency using the first column (assumed time)
             time_col = df.columns[0]  # First column is assumed to be time
+            inferred_freq = "Unknown"
             try:
                 df[time_col] = pd.to_datetime(df[time_col])
                 df = df.sort_values(by=time_col)
