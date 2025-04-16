@@ -135,6 +135,7 @@ def upload_file():
 
             # **Statistics Table**
             stats_table = df[numeric_cols].describe().transpose()
+            stats_table["Available Row"] = df[numeric_cols].notnull().sum()
             stats_table["Missing Rows"] = df[numeric_cols].isnull().sum()
             stats_table["Duplicates"] = df[numeric_cols].apply(lambda x: x.duplicated().sum()) 
 
@@ -146,33 +147,21 @@ def upload_file():
                 time_diffs = df[time_col].diff().dropna()
                 most_common_diff = time_diffs.mode()[0]
 
-                # Step 2: Classify frequency
-                if most_common_diff <= pd.Timedelta(seconds=1):
-                    inferred_freq = "Secondly"
-                elif most_common_diff <= pd.Timedelta(minutes=1):
-                    inferred_freq = "Minutely"
-                elif most_common_diff <= pd.Timedelta(hours=1):
-                    inferred_freq = "Hourly"
-                elif most_common_diff <= pd.Timedelta(days=1):
-                    inferred_freq = "Daily"
-                elif most_common_diff <= pd.Timedelta(weeks=1):
-                    inferred_freq = "Weekly"
-                else:
-                    inferred_freq = "Monthly or Irregular"
+                freq_seconds = most_common_diff.total_seconds()
 
             except Exception as e:
                 inferred_freq = "Unknown"
 
             # Step 3: Add Frequency row to stats_table (as a new summary row)
             # Add 'Frequency' as a new column (not a row!)
-            stats_table["Frequency"] = inferred_freq
+            stats_table["Frequency"] = freq_seconds
 
 
  
             stats_table = stats_table.rename(columns={"std": "Standard Deviation", "50%": "Median"})
 
             stats_table = stats_table[[
-                "count", "Missing Rows", "Duplicates", "Frequency" , "mean", "Standard Deviation", "min", "25%", "Median", "75%", "max"
+                "Available Row", "Missing Rows", "Duplicates", "Frequency" , "mean", "Standard Deviation", "min", "25%", "Median", "75%", "max"
             ]]
             stats_table_html = stats_table.to_html(classes="table table-bordered")
 
@@ -564,6 +553,52 @@ def upload_file():
 
                 results_df.loc[col, "Reason"] = "; ".join(reason) if reason else "No significant issues detected."
 
+
+
+            # ======= Missing Timestamp Tend Table =======
+            missing_timestamps_summary = []
+
+            # Determine frequency string compatible with pandas
+            freq_map = {
+                "Secondly": "S",
+                "Minutely": "T",
+                "Hourly": "H",
+                "Daily": "D",
+                "Weekly": "W"
+            }
+            freq_str = freq_map.get(inferred_freq, None)
+
+            if freq_str:
+                # Ensure datetime and set index
+                df = df.set_index(time_col)
+                df.index = pd.to_datetime(df.index)
+
+                # Create complete time index
+                full_index = pd.date_range(start=df.index.min(), end=df.index.max(), freq=freq_str)
+
+                # Reindex to find missing
+                df_reindexed = df.reindex(full_index)
+
+                for col in numeric_cols:
+                    missing_times = df_reindexed[df_reindexed[col].isna()].index
+                    if not missing_times.empty:
+                        missing_list_str = ", ".join(missing_times.strftime("%Y-%m-%d %H:%M:%S").tolist())
+                    else:
+                        missing_list_str = "No Missing Timestamps"
+                    
+                    missing_timestamps_summary.append({
+                        "Column": col,
+                        "Missing Timestamps": missing_list_str
+                    })
+
+                missing_time_df = pd.DataFrame(missing_timestamps_summary)
+            else:
+                missing_time_df = pd.DataFrame([{"Column": "N/A", "Missing Timestamps": "Unsupported or Unknown Frequency"}])
+
+            missing_time_html = missing_time_df.to_html(classes="table table-bordered", index=False)
+
+
+
             # ========================== Stability Analysis ========================== # 
            
             
@@ -704,7 +739,8 @@ def upload_file():
                 anomaly_plot="static/anomalies_stacked.png",
                 correlation_plot="static/correlation_heatmap_large.png",
                 stability_result=stability_result_html,
-                stability_analysis=feature_stability_html)
+                stability_analysis=feature_stability_html,
+                missing_time_table=missing_time_html)
 
 
     return render_template("index.html")
