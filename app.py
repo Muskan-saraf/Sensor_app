@@ -28,9 +28,6 @@ from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
 
-
-
-
 # safe_filename
 app = Flask(__name__)
 
@@ -99,9 +96,6 @@ def plot_anomalies(df, time_col, value_col, anomaly_col, save_path='static/anoma
     plt.close()
 
 
-
-
-
 @app.route("/", methods=["GET", "POST"])
 def upload_file():
     global stats_table, results_df, stability_df, numeric_cols, cols_per_fig
@@ -129,8 +123,6 @@ def upload_file():
                 
             except Exception as e:
                 return f"Error while reading the file: {str(e)}", 400
-
-           
 
             # Load Data
             
@@ -160,8 +152,6 @@ def upload_file():
             # Step 3: Add Frequency row to stats_table (as a new summary row)
             # Add 'Frequency' as a new column (not a row!)
             stats_table["Frequency"] = freq_seconds
-
-
  
             stats_table = stats_table.rename(columns={"std": "Standard Deviation", "50%": "Median"})
 
@@ -249,14 +239,6 @@ def upload_file():
             plt.tight_layout()
             plt.savefig("static/anomalies_stacked.png", bbox_inches="tight")
             plt.close()
-
-
-
-
-
-
-            
-            
             
             # **Correlation Heatmap (Extra Large & Readable)**
             plt.figure(figsize=(30, 24))  # Extra large for readability
