@@ -155,13 +155,14 @@
             <img src="{{ cluster_plot }}" alt="Cluster Plot" class="img-fluid">
         </div>
     </div>
-    
+
     <!-- PDF Report Download -->
     <div class="text-center mt-4">
         <h3 class="section-title">Download Report</h3>
-        <a href="{{ url_for('download_pdf') }}"  class="btn btn-primary mt-2" download>
+        <a href="{{ url_for('download_pdf') }}" class="btn btn-primary mt-2" target="_blank">
             Download PDF Report
         </a>
+        
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>

@@ -753,12 +753,15 @@ def upload_file():
                 feature_stability_df = pd.DataFrame(stability_results, columns=stability_columns)
 
 
-
-
             # Save DataFrames to temporary files
             stats_table.to_pickle("temp/stats_table.pkl")
             results_df.to_pickle("temp/results_df.pkl")
             feature_stability_df.to_pickle("temp/stability_df.pkl")
+            # Save these for PDF export in your upload_file() function:
+            stability_result_df.to_pickle("temp/stability_result_df.pkl")
+            missing_time_df.to_pickle("temp/missing_time_df.pkl")
+            cluster_summary.to_pickle("temp/cluster_summary_df.pkl")
+
             
             # Convert to HTML for rendering
             stability_result_html = stability_result_df.to_html(classes="table table-bordered")
@@ -792,10 +795,14 @@ def upload_file():
 
 @app.route("/download_pdf")
 def download_pdf():
+    print("Triggered /download_pdf route")  # Add this
     pdf_path, error = generate_pdf()
     if error:
+        print("Error generating PDF:", error)
         return error, 400
+    print("Sending PDF file:", pdf_path)
     return send_file(pdf_path, as_attachment=True)
+
 
 
 if __name__ == "__main__":
