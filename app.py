@@ -23,6 +23,10 @@ import torch.optim as optim
 from scipy.stats import entropy
 import mimetypes
 import pickle  # already installed with pandas
+from sklearn.preprocessing import StandardScaler
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_score
+
 
 
 
@@ -600,6 +604,61 @@ def upload_file():
 
 
 
+            # ========== CLUSTERING WITH AUTO k SELECTION ==========
+
+            # Drop rows with missing numeric values for clustering
+            cluster_df = df[numeric_cols].dropna()
+
+            if len(cluster_df) >= 10:  # Ensure enough data for clustering
+                # Standardize the features
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(cluster_df)
+
+                # Try multiple k values
+                inertia = []
+                silhouette = []
+                K_range = range(2, min(10, len(cluster_df)))  # Safe upper bound on k
+
+                for k in K_range:
+                    kmeans = KMeans(n_clusters=k, random_state=42)
+                    labels = kmeans.fit_predict(X_scaled)
+                    inertia.append(kmeans.inertia_)
+                    silhouette.append(silhouette_score(X_scaled, labels))
+
+                # Choose k with best silhouette score
+                best_k = K_range[silhouette.index(max(silhouette))]
+
+                # Final clustering with best k
+                final_kmeans = KMeans(n_clusters=best_k, random_state=42)
+                final_labels = final_kmeans.fit_predict(X_scaled)
+
+                df.loc[cluster_df.index, 'Cluster_Label'] = final_labels
+
+                # Cluster summary
+                cluster_summary = df.groupby("Cluster_Label")[numeric_cols].mean().round(2)
+                cluster_summary_html = cluster_summary.to_html(classes="table table-bordered")
+
+                # Optional: plot PCA for cluster visualization
+                from sklearn.decomposition import PCA
+
+                pca = PCA(n_components=2)
+                pca_components = pca.fit_transform(X_scaled)
+
+                pca_df = pd.DataFrame(pca_components, columns=["PC1", "PC2"])
+                pca_df["Cluster"] = final_labels
+
+                plt.figure(figsize=(8, 6))
+                sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Cluster", palette="Set1")
+                plt.title(f"K-Means Clustering (k = {best_k})")
+                plt.savefig("static/cluster_plot.png")
+                plt.close()
+
+            else:
+                cluster_summary_html = "<p>Not enough data for clustering.</p>"
+
+
+
+
             # ========================== Stability Analysis ========================== # 
            
             
@@ -741,7 +800,9 @@ def upload_file():
                 correlation_plot="static/correlation_heatmap_large.png",
                 stability_result=stability_result_html,
                 stability_analysis=feature_stability_html,
-                missing_time_table=missing_time_html)
+                missing_time_table=missing_time_html,
+                cluster_summary=cluster_summary_html,
+                cluster_plot="static/cluster_plot.png")
 
 
     return render_template("index.html")
