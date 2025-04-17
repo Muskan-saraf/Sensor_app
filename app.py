@@ -11,7 +11,6 @@ from sklearn.ensemble import IsolationForest
 from sklearn.svm import OneClassSVM
 from scipy.fft import fft
 from pykalman import KalmanFilter
-from fpdf import FPDF
 import re
 from scipy.stats import shapiro, skew, kurtosis
 from sklearn.model_selection import train_test_split
@@ -26,7 +25,7 @@ import pickle  # already installed with pandas
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
-
+from pdf import generate_pdf
 
 # safe_filename
 app = Flask(__name__)
@@ -36,27 +35,6 @@ TEMP_FOLDER = "temp"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs("temp", exist_ok=True)  # Create temp folder if it doesn't exist
 
-# 📌 PDF Helper
-def render_table_to_pdf(pdf, df, title, max_width=190):
-    pdf.set_font("Arial", "B", 12)
-    pdf.cell(200, 10, title, ln=True)
-    pdf.set_font("Arial", "", 8)
-    col_width = max_width / len(df.columns)
-
-    # Header
-    for col in df.columns:
-        pdf.cell(col_width, 8, str(col)[:20], border=1, align="C")
-    pdf.ln()
-
-    # Rows
-    for row in df.itertuples(index=False):
-        for value in row:
-            value_str = str(value)
-            if len(value_str) > 30:
-                value_str = value_str[:27] + "..."
-            pdf.cell(col_width, 8, value_str, border=1, align="C")
-        pdf.ln()
-    pdf.ln(10)
 
 def calculate_psi(expected, actual, buckets=10):
     """ Population Stability Index (PSI) Calculation """
@@ -812,29 +790,13 @@ def upload_file():
 
     return render_template("index.html")
 
-
-
 @app.route("/download_pdf")
 def download_pdf():
-    try:
-        stats_table = pd.read_pickle(os.path.join(TEMP_FOLDER, "stats_table.pkl"))
-    except Exception as e:
-        return f"Error: {str(e)}", 400
-
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-
-    pdf.set_font("Arial", "B", 16)
-    pdf.cell(200, 10, "Sensor Data Statistics Report", ln=True, align="C")
-    pdf.ln(10)
-
-    render_table_to_pdf(pdf, stats_table, "📊 Statistics Summary")
-
-    pdf_path = os.path.join("static", "sensor_report.pdf")
-    pdf.output(pdf_path)
-
+    pdf_path, error = generate_pdf()
+    if error:
+        return error, 400
     return send_file(pdf_path, as_attachment=True)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
