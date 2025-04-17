@@ -610,6 +610,28 @@ def upload_file():
                 # Choose k with best silhouette score
                 best_k = K_range[silhouette.index(max(silhouette))]
 
+                # 🔽 ADD THIS BLOCK HERE
+                plt.figure(figsize=(12, 5))
+
+                # Inertia Plot (Elbow)
+                plt.subplot(1, 2, 1)
+                plt.plot(K_range, inertia, marker='o')
+                plt.title("Elbow Method (Inertia)")
+                plt.xlabel("Number of clusters (k)")
+                plt.ylabel("Inertia")
+
+                # Silhouette Score Plot
+                plt.subplot(1, 2, 2)
+                plt.plot(K_range, silhouette, marker='o', color='green')
+                plt.title("Silhouette Score")
+                plt.xlabel("Number of clusters (k)")
+                plt.ylabel("Score")
+
+                plt.tight_layout()
+                plt.savefig("static/k_selection.png")
+                plt.close()
+
+
                 # Final clustering with best k
                 final_kmeans = KMeans(n_clusters=best_k, random_state=42)
                 final_labels = final_kmeans.fit_predict(X_scaled)
@@ -784,7 +806,8 @@ def upload_file():
                 stability_analysis=feature_stability_html,
                 missing_time_table=missing_time_html,
                 cluster_summary=cluster_summary_html,
-                cluster_plot="static/cluster_plot.png")
+                cluster_plot="static/cluster_plot.png",
+                k_selection_plot="static/k_selection.png")
 
 
     return render_template("index.html")
