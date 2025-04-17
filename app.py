@@ -806,8 +806,7 @@ def upload_file():
                 stability_analysis=feature_stability_html,
                 missing_time_table=missing_time_html,
                 cluster_summary=cluster_summary_html,
-                cluster_plot="static/cluster_plot.png",
-                k_selection_plot="static/k_selection.png")
+                cluster_plot="static/cluster_plot.png")
 
 
     return render_template("index.html")
