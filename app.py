@@ -640,7 +640,8 @@ def upload_file():
 
                 # Cluster summary
                 cluster_summary = df.groupby("Cluster_Label")[numeric_cols].mean().round(2)
-                cluster_summary_html = cluster_summary.to_html(classes="table table-bordered")
+                cluster_summary_html = cluster_summary.to_html(classes="table table-bordered", index_names=False)
+
 
                 # Optional: plot PCA for cluster visualization
                 from sklearn.decomposition import PCA
