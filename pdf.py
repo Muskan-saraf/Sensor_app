@@ -10,23 +10,28 @@ os.makedirs(STATIC_FOLDER, exist_ok=True)
 def render_table_to_pdf(pdf, df, title, max_width=190):
     pdf.set_font("Arial", "B", 12)
     pdf.cell(200, 10, title, ln=True)
-    pdf.set_font("Arial", "", 8)
-    col_width = max_width / len(df.columns)
+    pdf.set_font("Arial", "", 6)  # Smaller font size to fit more columns
+
+    num_columns = len(df.columns)
+    col_width = max_width / num_columns
 
     # Header
     for col in df.columns:
-        pdf.cell(col_width, 8, str(col)[:20], border=1, align="C")
+        header = str(col)[:15]  # truncate headers
+        pdf.cell(col_width, 5, header, border=1, align="C")
     pdf.ln()
 
     # Rows
     for row in df.itertuples(index=False):
         for value in row:
-            value_str = str(value)
-            if len(value_str) > 30:
-                value_str = value_str[:27] + "..."
-            pdf.cell(col_width, 8, value_str, border=1, align="C")
+            val = str(value)
+            if len(val) > 12:
+                val = val[:10] + "..."  # use ASCII-safe dots instead of Unicode ellipsis
+            pdf.cell(col_width, 5, val, border=1, align="C")
+
         pdf.ln()
-    pdf.ln(10)
+    pdf.ln(5)
+
 
 def generate_pdf():
     stats_path = os.path.join(TEMP_FOLDER, "stats_table.pkl")
