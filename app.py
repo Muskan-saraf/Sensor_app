@@ -495,7 +495,7 @@ def upload_file():
 
                 # Immediately mark "Unhealthy" if missing values > 96% or duplicates > 90%
                 if missing_percentage > 96 or duplicate_percentage > 99:
-                    results_df.loc[col, "Suggestions"] = "❌ Unhealthy"
+                    results_df.loc[col, "Suggestions"] = "Unhealthy"
                     
                 elif (
                     missing_percentage <= 10 or  # Acceptable missing values
@@ -508,10 +508,10 @@ def upload_file():
                     (isinstance(Cpk, (int, float)) and Cpk >= 1.33)  # Sufficient process capability
                     ):
                     
-                    results_df.loc[col, "Suggestions"] = "✅ Healthy"
+                    results_df.loc[col, "Suggestions"] = "Healthy"
                     
                 else:
-                    results_df.loc[col, "Suggestions"] = "❌ Unhealthy"
+                    results_df.loc[col, "Suggestions"] = "Unhealthy"
 
 
 
@@ -640,11 +640,8 @@ def upload_file():
                 cluster_summary_html = "<p>Not enough data for clustering.</p>"
 
 
-
-
             # ========================== Stability Analysis ========================== # 
            
-            
             target_col = numeric_cols[-1] if len(numeric_cols) > 1 else None
             if target_col:
                 X = df[numeric_cols].drop(columns=[target_col]).dropna()
@@ -660,7 +657,6 @@ def upload_file():
                 # Now safely split
                 # 
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-
                 
                 mae_scores, mse_scores = [], []
                 for i in range(10):
@@ -752,7 +748,6 @@ def upload_file():
         # Create DataFrame
                 feature_stability_df = pd.DataFrame(stability_results, columns=stability_columns)
 
-
             # Save DataFrames to temporary files
             stats_table.to_pickle("temp/stats_table.pkl")
             results_df.to_pickle("temp/results_df.pkl")
@@ -761,19 +756,13 @@ def upload_file():
             stability_result_df.to_pickle("temp/stability_result_df.pkl")
             missing_time_df.to_pickle("temp/missing_time_df.pkl")
             cluster_summary.to_pickle("temp/cluster_summary_df.pkl")
-
-            
+ 
             # Convert to HTML for rendering
             stability_result_html = stability_result_df.to_html(classes="table table-bordered")
             feature_stability_html = feature_stability_df.to_html(classes="table table-bordered", index=False)
             # Save numeric column info for PDF route
             with open("temp/numeric_cols.pkl", "wb") as f:
                 pickle.dump((numeric_cols, cols_per_fig), f)
-
-
-
-
-
 
             return render_template(
                 "report.html",
@@ -790,7 +779,6 @@ def upload_file():
                 cluster_summary=cluster_summary_html,
                 cluster_plot="static/cluster_plot.png")
 
-
     return render_template("index.html")
 
 @app.route("/download_pdf")
@@ -802,8 +790,6 @@ def download_pdf():
         return error, 400
     print("Sending PDF file:", pdf_path)
     return send_file(pdf_path, as_attachment=True)
-
-
 
 if __name__ == "__main__":
     app.run(debug=True)

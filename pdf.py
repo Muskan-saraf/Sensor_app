@@ -24,7 +24,7 @@ def render_table_to_pdf(pdf, df, title, font_size=6, max_width=270):
         for value in row:
             val = str(value)
             if len(val) > 15:
-                val = val[:13] + "…"  # safe for encoding
+                val = val[:13] + "..."  # safe for fpdf (ASCII)
             pdf.cell(col_width, 6, val, border=1, align="C")
         pdf.ln()
     pdf.ln(5)
@@ -59,43 +59,43 @@ def generate_pdf():
 
     # === 1. Statistics Table ===
     stats_table = pd.read_pickle(stats_path)
-    render_table_to_pdf(pdf, stats_table, "📊 Statistics Summary")
+    render_table_to_pdf(pdf, stats_table, "Statistics Summary")
 
     # === 2. Sensor Health Table ===
     if os.path.exists(health_path):
         health_df = pd.read_pickle(health_path)
-        render_table_to_pdf(pdf, health_df, "🩺 Sensor Health Check")
+        render_table_to_pdf(pdf, health_df, "Sensor Health Check")
 
     # === 3. Feature Stability Table ===
     if os.path.exists(stability_path):
         feature_df = pd.read_pickle(stability_path)
-        render_table_to_pdf(pdf, feature_df, "📉 Feature Stability Analysis")
+        render_table_to_pdf(pdf, feature_df, "Feature Stability Analysis")
 
     # === 4. Stability Summary Table ===
     stability_result_path = os.path.join(TEMP_FOLDER, "stability_result_df.pkl")
     if os.path.exists(stability_result_path):
         model_stability_df = pd.read_pickle(stability_result_path)
-        render_table_to_pdf(pdf, model_stability_df, "🔁 Model Stability Summary")
+        render_table_to_pdf(pdf, model_stability_df, "Model Stability Summary")
 
     # === 5. Clustering Summary Table ===
     cluster_summary_path = os.path.join(TEMP_FOLDER, "cluster_summary_df.pkl")
     if os.path.exists(cluster_summary_path):
         cluster_df = pd.read_pickle(cluster_summary_path)
-        render_table_to_pdf(pdf, cluster_df, "🔍 Cluster Summary")
+        render_table_to_pdf(pdf, cluster_df, "Cluster Summary")
 
     # === 6. Missing Timestamp Table ===
     missing_time_path = os.path.join(TEMP_FOLDER, "missing_time_df.pkl")
     if os.path.exists(missing_time_path):
         missing_df = pd.read_pickle(missing_time_path)
-        render_table_to_pdf(pdf, missing_df, "⏳ Missing Timestamps")
+        render_table_to_pdf(pdf, missing_df, "Missing Timestamps")
 
     # === 7. Plots ===
     image_plots = [
-        ("static/timeseries_stacked.png", "📈 Time Series Plot"),
-        ("static/anomalies_stacked.png", "🔍 Anomaly Detection Plot"),
-        ("static/correlation_heatmap_large.png", "🧮 Correlation Heatmap"),
-        ("static/cluster_plot.png", "🔢 Cluster PCA Plot"),
-        ("static/k_selection.png", "📊 K-Selection Plot")
+        ("static/timeseries_stacked.png", "Time Series Plot"),
+        ("static/anomalies_stacked.png", "Anomaly Detection Plot"),
+        ("static/correlation_heatmap_large.png", "Correlation Heatmap"),
+        ("static/cluster_plot.png", "Cluster PCA Plot"),
+        ("static/k_selection.png", "K-Selection Plot")
     ]
 
     for image_path, title in image_plots:
