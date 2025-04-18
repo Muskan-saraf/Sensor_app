@@ -165,6 +165,10 @@
     <div class="card mb-4">
         <h3 class="section-title">Select Columns for KMeans Clustering</h3>
         <form method="POST" action="/custom_clustering">
+            <div class="mb-3 text-center">
+                <button type="button" class="btn btn-outline-secondary me-2" onclick="selectAll(true)">Select All</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="selectAll(false)">Unselect All</button>
+            </div>
             <div class="row">
                 {% for col in column_options %}
                 <div class="col-md-4 col-sm-6 mb-2">
@@ -185,6 +189,14 @@
             </div>
         </form>
     </div>
+
+    <script>
+    function selectAll(state) {
+        const checkboxes = document.querySelectorAll('input[name="selected_cols"]');
+        checkboxes.forEach(cb => cb.checked = state);
+    }
+    </script>
+
 
 
 

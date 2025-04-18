@@ -607,7 +607,29 @@ def upload_file():
                     silhouette.append(silhouette_score(X_scaled, labels))
 
                 # Choose k with best silhouette score
-                best_k = K_range[silhouette.index(max(silhouette))]
+                # Elbow method: find the "knee point" using the distance from a line between first and last points
+                from scipy.spatial.distance import euclidean
+
+                # Normalize inertia for better elbow detection
+                x = np.array(list(K_range))
+                y = np.array(inertia)
+
+                # Line from first to last point
+                line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
+                line_vector_norm = line_vector / np.linalg.norm(line_vector)
+
+                # Compute distances
+                distances = []
+                for i in range(len(x)):
+                    point = np.array([x[i] - x[0], y[i] - y[0]])
+                    proj_len = np.dot(point, line_vector_norm)
+                    proj = proj_len * line_vector_norm
+                    dist = np.linalg.norm(point - proj)
+                    distances.append(dist)
+
+                # Elbow point = max distance
+                best_k = x[np.argmax(distances)]
+
 
                 # Plot K Selection
                 plt.figure(figsize=(12, 5))
@@ -884,7 +906,29 @@ def custom_clustering():
             inertia.append(kmeans.inertia_)
             silhouette.append(silhouette_score(X_scaled, labels))
 
-        best_k = K_range[silhouette.index(max(silhouette))]
+        # Elbow method: find the "knee point" using the distance from a line between first and last points
+        from scipy.spatial.distance import euclidean
+
+        # Normalize inertia for better elbow detection
+        x = np.array(list(K_range))
+        y = np.array(inertia)
+
+        # Line from first to last point
+        line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
+        line_vector_norm = line_vector / np.linalg.norm(line_vector)
+
+        # Compute distances
+        distances = []
+        for i in range(len(x)):
+            point = np.array([x[i] - x[0], y[i] - y[0]])
+            proj_len = np.dot(point, line_vector_norm)
+            proj = proj_len * line_vector_norm
+            dist = np.linalg.norm(point - proj)
+            distances.append(dist)
+
+        # Elbow point = max distance
+        best_k = x[np.argmax(distances)]
+
 
         plt.figure(figsize=(12, 5))
         plt.subplot(1, 2, 1)

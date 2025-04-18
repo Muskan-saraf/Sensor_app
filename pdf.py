@@ -83,12 +83,6 @@ def generate_pdf():
         cluster_df = pd.read_pickle(cluster_summary_path)
         render_table_to_pdf(pdf, cluster_df, "Cluster Summary")
 
-    # === 6. Missing Timestamp Table ===
-    missing_time_path = os.path.join(TEMP_FOLDER, "missing_time_df.pkl")
-    if os.path.exists(missing_time_path):
-        missing_df = pd.read_pickle(missing_time_path)
-        render_table_to_pdf(pdf, missing_df, "Missing Timestamps")
-
     # === 7. Plots ===
     image_plots = [
         ("static/timeseries_stacked.png", "Time Series Plot"),
