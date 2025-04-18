@@ -823,60 +823,49 @@ def custom_clustering():
         return "Error: No columns selected for clustering.", 400
 
     try:
-        # Load the uploaded file again
+        # Load uploaded file
         file_path = os.path.join(UPLOAD_FOLDER, os.listdir(UPLOAD_FOLDER)[0])
         ext = os.path.splitext(file_path)[1].lower()
-        if ext == ".csv":
-            df = pd.read_csv(file_path)
-        else:
-            df = pd.read_excel(file_path)
+        df = pd.read_csv(file_path) if ext == ".csv" else pd.read_excel(file_path)
 
         # Normalize column names
         df.columns = df.columns.str.strip().str.replace('\n', '', regex=False)
-        normalized_df_cols = [col.lower() for col in df.columns]
-        normalized_selected = [col.lower() for col in selected_cols]
+        normalized_df_cols = [col.lower().strip() for col in df.columns]
+        normalized_selected = [col.lower().strip() for col in selected_cols]
+        col_map = {col.lower().strip(): col for col in df.columns}
 
-        # Map normalized name back to original column names
-        col_map = {col.lower(): col for col in df.columns}
+        # Check for missing columns
         missing_cols = [col for col in normalized_selected if col not in normalized_df_cols]
-
         if missing_cols:
+            print("DEBUG: Available columns in uploaded file:", df.columns.tolist())
             return f"Error: The following columns are not found in the uploaded file: {missing_cols}", 400
 
-        # Correct mapped columns for selection
+        # Convert selected back to original column names
         final_selected_cols = [col_map[col] for col in normalized_selected]
 
-        # Prepare the cleaned DataFrame for clustering
+        # Prepare DataFrame
         cluster_df = df[final_selected_cols].dropna()
 
         # ========== Sanity Checks ==========
-        sanity_issue = False
-        sanity_reasons = []
-
+        sanity_issues = []
         if len(cluster_df) < 10:
-            sanity_issue = True
-            sanity_reasons.append("Not enough rows for clustering (minimum 10 required).")
+            sanity_issues.append("Not enough rows for clustering (minimum 10 required).")
 
         cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
         if cluster_df.shape[1] < 2:
-            sanity_issue = True
-            sanity_reasons.append("Too few variable columns after filtering.")
+            sanity_issues.append("Too few variable columns after filtering.")
 
-        if not sanity_issue:
+        if not sanity_issues:
             scaler = StandardScaler()
             X_scaled = scaler.fit_transform(cluster_df)
-
             if not np.all(np.isfinite(X_scaled)):
-                sanity_issue = True
-                sanity_reasons.append("NaN or Inf in scaled values.")
+                sanity_issues.append("NaN or Inf values found after scaling.")
+        if sanity_issues:
+            return f"<p>Clustering failed:</p><ul>{''.join(f'<li>{reason}</li>' for reason in sanity_issues)}</ul>"
 
-        if sanity_issue:
-            return f"<p>Clustering failed:</p><ul>{''.join(f'<li>{r}</li>' for r in sanity_reasons)}</ul>"
-
-        # ========== KMeans Clustering ==========
+        # ========== KMeans ==========
         inertia, silhouette = [], []
         K_range = range(2, min(10, len(cluster_df)))
-
         for k in K_range:
             kmeans = KMeans(n_clusters=k, random_state=42)
             labels = kmeans.fit_predict(X_scaled)
@@ -885,7 +874,6 @@ def custom_clustering():
 
         best_k = K_range[silhouette.index(max(silhouette))]
 
-        # Plot Elbow and Silhouette
         plt.figure(figsize=(12, 5))
         plt.subplot(1, 2, 1)
         plt.plot(K_range, inertia, marker='o')
@@ -899,18 +887,17 @@ def custom_clustering():
         plt.savefig("static/k_selection_custom.png")
         plt.close()
 
-        # Final KMeans run
+        # Final clustering and PCA
         kmeans = KMeans(n_clusters=best_k, random_state=42)
         final_labels = kmeans.fit_predict(X_scaled)
 
         df['Custom_Cluster'] = np.nan
         df.loc[cluster_df.index, 'Custom_Cluster'] = final_labels
 
-        # PCA for visualization
         from sklearn.decomposition import PCA
+
         pca = PCA(n_components=2)
         components = pca.fit_transform(X_scaled)
-
         pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
         pca_df["Cluster"] = final_labels
 
@@ -924,3 +911,8 @@ def custom_clustering():
 
     except Exception as e:
         return f"Unexpected error: {e}", 500
+
+
+
+if __name__ == "__main__":
+    app.run(debug=True)
