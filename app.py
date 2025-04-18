@@ -817,7 +817,7 @@ def download_pdf():
 
 @app.route("/custom_clustering", methods=["POST"])
 def custom_clustering():
-    selected_cols = [col.strip().replace('\n', '') for col in request.form.getlist("selected_cols")]
+    selected_cols = request.form.getlist("selected_cols")
 
     if not selected_cols:
         return "Error: No columns selected for clustering.", 400
@@ -828,23 +828,35 @@ def custom_clustering():
         ext = os.path.splitext(file_path)[1].lower()
         df = pd.read_csv(file_path) if ext == ".csv" else pd.read_excel(file_path)
 
-        # Normalize column names
-        df.columns = df.columns.str.strip().str.replace('\n', '', regex=False)
-        normalized_df_cols = [col.lower().strip() for col in df.columns]
-        normalized_selected = [col.lower().strip() for col in selected_cols]
-        col_map = {col.lower().strip(): col for col in df.columns}
+        # Optional: Only strip newlines, nothing else
+        df.columns = df.columns.str.replace('\n', '', regex=False)
 
-        # Check for missing columns
-        missing_cols = [col for col in normalized_selected if col not in normalized_df_cols]
+        # Debug print
+        print("\n=== DEBUG: Uploaded columns ===")
+        for col in df.columns:
+            print(f"[{col}]")
+
+        print("\n=== DEBUG: Selected columns ===")
+        for col in selected_cols:
+            print(f"[{col}]")
+
+        # Check for exact column matches
+        missing_cols = [col for col in selected_cols if col not in df.columns]
+
+        # If some selected columns are not found, try fuzzy debugging
         if missing_cols:
-            print("DEBUG: Available columns in uploaded file:", df.columns.tolist())
-            return f"Error: The following columns are not found in the uploaded file: {missing_cols}", 400
+            debug_msg = "<strong>Error:</strong> The following columns were not matched:<ul>"
+            for missing in missing_cols:
+                close_matches = [real for real in df.columns if real.strip() == missing.strip()]
+                if close_matches:
+                    debug_msg += f"<li>{missing} → (Did you mean: {close_matches[0]})</li>"
+                else:
+                    debug_msg += f"<li>{missing} → No match found</li>"
+            debug_msg += "</ul>"
+            return debug_msg, 400
 
-        # Convert selected back to original column names
-        final_selected_cols = [col_map[col] for col in normalized_selected]
-
-        # Prepare DataFrame
-        cluster_df = df[final_selected_cols].dropna()
+        # Safe to proceed
+        cluster_df = df[selected_cols].dropna()
 
         # ========== Sanity Checks ==========
         sanity_issues = []
