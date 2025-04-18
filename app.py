@@ -947,6 +947,15 @@ def custom_clustering():
         kmeans = KMeans(n_clusters=best_k, random_state=42)
         final_labels = kmeans.fit_predict(X_scaled)
 
+        # Create cluster summary table (mean values for each feature)
+        custom_cluster_summary = cluster_df.copy()
+        custom_cluster_summary['Cluster_Label'] = final_labels
+        custom_cluster_summary = custom_cluster_summary.groupby('Cluster_Label').mean().round(2)
+
+        # Convert to HTML for rendering
+        custom_cluster_summary_html = custom_cluster_summary.to_html(classes="table table-bordered")
+
+
         df['Custom_Cluster'] = np.nan
         df.loc[cluster_df.index, 'Custom_Cluster'] = final_labels
 
@@ -963,7 +972,12 @@ def custom_clustering():
         plt.savefig("static/custom_cluster_plot.png")
         plt.close()
 
-        return render_template("custom_clustering.html", cluster_plot="static/custom_cluster_plot.png")
+        return render_template(
+            "custom_clustering.html",
+            cluster_plot="static/custom_cluster_plot.png",
+            cluster_summary=custom_cluster_summary_html
+        )
+
 
     except Exception as e:
         return f"Unexpected error: {e}", 500

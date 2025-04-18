@@ -6,6 +6,9 @@
 <body>
     <h2>Custom KMeans Clustering Result</h2>
     <img src="{{ cluster_plot }}" alt="Custom Clustering Plot" style="max-width: 100%;">
+    <h2>Custom Cluster Summary Table</h2>
+        {{ cluster_summary|safe }}
+
     <br><a href="/">Back to Home</a>
 </body>
 </html>
