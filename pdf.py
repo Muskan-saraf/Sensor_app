@@ -77,18 +77,12 @@ def generate_pdf():
         model_stability_df = pd.read_pickle(stability_result_path)
         render_table_to_pdf(pdf, model_stability_df, "Model Stability Summary")
 
-    # === 5. Clustering Summary Table ===
-    cluster_summary_path = os.path.join(TEMP_FOLDER, "cluster_summary_df.pkl")
-    if os.path.exists(cluster_summary_path):
-        cluster_df = pd.read_pickle(cluster_summary_path)
-        render_table_to_pdf(pdf, cluster_df, "Cluster Summary")
 
     # === 7. Plots ===
     image_plots = [
         ("static/timeseries_stacked.png", "Time Series Plot"),
         ("static/anomalies_stacked.png", "Anomaly Detection Plot"),
         ("static/correlation_heatmap_large.png", "Correlation Heatmap"),
-        ("static/cluster_plot.png", "Cluster PCA Plot"),
         ("static/k_selection.png", "K-Selection Plot")
     ]
 

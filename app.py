@@ -565,123 +565,6 @@ def upload_file():
             missing_time_html = missing_time_df.to_html(classes="table table-bordered", index=False)
 
 
-
-            # ========== CLUSTERING WITH AUTO k SELECTION (with sanity checks) ==========
-
-            # Drop rows with missing numeric values for clustering
-            cluster_df = df[numeric_cols].dropna()
-
-            sanity_issue = False
-            sanity_reasons = []
-
-            if len(cluster_df) < 10:
-                sanity_issue = True
-                sanity_reasons.append("Not enough data rows for clustering (minimum 10 required).")
-
-            # Remove constant columns
-            cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
-            if cluster_df.shape[1] < 2:
-                sanity_issue = True
-                sanity_reasons.append("Too few variable columns for clustering after removing constants.")
-
-            # Standardize the features
-            if not sanity_issue:
-                scaler = StandardScaler()
-                X_scaled = scaler.fit_transform(cluster_df)
-
-                # Check for NaNs or Infs in scaled data
-                if not np.all(np.isfinite(X_scaled)):
-                    sanity_issue = True
-                    sanity_reasons.append("NaN or Inf values found in scaled data.")
-
-            if not sanity_issue:
-                # Try multiple k values
-                inertia = []
-                silhouette = []
-                K_range = range(2, min(10, len(cluster_df)))  # Safe upper bound on k
-
-                for k in K_range:
-                    kmeans = KMeans(n_clusters=k, random_state=42)
-                    labels = kmeans.fit_predict(X_scaled)
-                    inertia.append(kmeans.inertia_)
-                    silhouette.append(silhouette_score(X_scaled, labels))
-
-                # Choose k with best silhouette score
-                # Elbow method: find the "knee point" using the distance from a line between first and last points
-                from scipy.spatial.distance import euclidean
-
-                # Normalize inertia for better elbow detection
-                x = np.array(list(K_range))
-                y = np.array(inertia)
-
-                # Line from first to last point
-                line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
-                line_vector_norm = line_vector / np.linalg.norm(line_vector)
-
-                # Compute distances
-                distances = []
-                for i in range(len(x)):
-                    point = np.array([x[i] - x[0], y[i] - y[0]])
-                    proj_len = np.dot(point, line_vector_norm)
-                    proj = proj_len * line_vector_norm
-                    dist = np.linalg.norm(point - proj)
-                    distances.append(dist)
-
-                # Elbow point = max distance
-                best_k = x[np.argmax(distances)]
-
-
-                # Plot K Selection
-                plt.figure(figsize=(12, 5))
-
-                # Elbow Method
-                plt.subplot(1, 2, 1)
-                plt.plot(K_range, inertia, marker='o')
-                plt.title("Elbow Method (Inertia)")
-                plt.xlabel("Number of clusters (k)")
-                plt.ylabel("Inertia")
-
-                # Silhouette Score
-                plt.subplot(1, 2, 2)
-                plt.plot(K_range, silhouette, marker='o', color='green')
-                plt.title("Silhouette Score")
-                plt.xlabel("Number of clusters (k)")
-                plt.ylabel("Score")
-
-                plt.tight_layout()
-                plt.savefig("static/k_selection.png")
-                plt.close()
-
-                # Final clustering
-                final_kmeans = KMeans(n_clusters=best_k, random_state=42)
-                final_labels = final_kmeans.fit_predict(X_scaled)
-
-                df.loc[cluster_df.index, 'Cluster_Label'] = final_labels
-
-                # Cluster summary
-                cluster_summary = df.groupby("Cluster_Label")[numeric_cols].mean().round(2)
-                cluster_summary_html = cluster_summary.to_html(classes="table table-bordered", index_names=False)
-
-                # PCA plot
-                from sklearn.decomposition import PCA
-                pca = PCA(n_components=2)
-                pca_components = pca.fit_transform(X_scaled)
-
-                pca_df = pd.DataFrame(pca_components, columns=["PC1", "PC2"])
-                pca_df["Cluster"] = final_labels
-
-                plt.figure(figsize=(8, 6))
-                sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Cluster", palette="Set1")
-                plt.title(f"K-Means Clustering (k = {best_k})")
-                plt.savefig("static/cluster_plot.png")
-                plt.close()
-
-            else:
-                cluster_summary_html = "<p>Clustering skipped due to sanity check failure:</p><ul>" + \
-                    "".join(f"<li>{reason}</li>" for reason in sanity_reasons) + "</ul>"
-
-
-
             # ========================== Stability Analysis ========================== # 
            
             target_col = numeric_cols[-1] if len(numeric_cols) > 1 else None
@@ -797,7 +680,6 @@ def upload_file():
             # Save these for PDF export in your upload_file() function:
             stability_result_df.to_pickle("temp/stability_result_df.pkl")
             missing_time_df.to_pickle("temp/missing_time_df.pkl")
-            cluster_summary.to_pickle("temp/cluster_summary_df.pkl")
  
             # Convert to HTML for rendering
             stability_result_html = stability_result_df.to_html(classes="table table-bordered")
@@ -818,8 +700,6 @@ def upload_file():
                 stability_result=stability_result_html,
                 stability_analysis=feature_stability_html,
                 missing_time_table=missing_time_html,
-                cluster_summary=cluster_summary_html,
-                cluster_plot="static/cluster_plot.png",
                 column_options=numeric_cols.tolist())
 
     return render_template("index.html")
@@ -833,6 +713,51 @@ def download_pdf():
         return error, 400
     print("Sending PDF file:", pdf_path)
     return send_file(pdf_path, as_attachment=True)
+
+
+def check_clustering_sanity(df, selected_cols, min_rows=10, correlation_threshold=0.95):
+    issues = []
+    X_scaled = None  # <- Initialize here
+
+    # 1. Column existence
+    missing_cols = [col for col in selected_cols if col not in df.columns]
+    if missing_cols:
+        issues.append(f"Missing columns: {missing_cols}")
+        return issues, None, None  # Also return X_scaled as None
+
+    cluster_df = df[selected_cols].dropna()
+
+    # 2. Check row count
+    if len(cluster_df) < min_rows:
+        issues.append(f"Not enough rows for clustering (minimum {min_rows} required).")
+
+    # 3. Drop non-variable columns
+    cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
+    if cluster_df.shape[1] < 2:
+        issues.append("Too few variable columns after filtering constant values.")
+
+    # 4. Data type check
+    if not np.all([np.issubdtype(dtype, np.number) for dtype in cluster_df.dtypes]):
+        issues.append("All selected columns must be numeric.")
+
+    # 5. Correlation check
+    if cluster_df.shape[1] >= 2:
+        corr_matrix = cluster_df.corr().abs()
+        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+        high_corr = [col for col in upper.columns if any(upper[col] > correlation_threshold)]
+        if high_corr:
+            issues.append(f"Highly correlated features (>{correlation_threshold}): {high_corr}")
+
+    # 6. NaN or Inf after scaling
+    if not issues:
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(cluster_df)
+        if not np.all(np.isfinite(X_scaled)):
+            issues.append("NaN or Inf values found after scaling.")
+            X_scaled = None  # Safety: avoid returning invalid value
+
+    return issues, cluster_df, X_scaled
+
 
 
 
@@ -881,21 +806,13 @@ def custom_clustering():
         cluster_df = df[selected_cols].dropna()
 
         # ========== Sanity Checks ==========
-        sanity_issues = []
-        if len(cluster_df) < 10:
-            sanity_issues.append("Not enough rows for clustering (minimum 10 required).")
+        # Enhanced sanity check
+        sanity_issues, cluster_df, X_scaled = check_clustering_sanity(df, selected_cols)
 
-        cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
-        if cluster_df.shape[1] < 2:
-            sanity_issues.append("Too few variable columns after filtering.")
 
-        if not sanity_issues:
-            scaler = StandardScaler()
-            X_scaled = scaler.fit_transform(cluster_df)
-            if not np.all(np.isfinite(X_scaled)):
-                sanity_issues.append("NaN or Inf values found after scaling.")
         if sanity_issues:
-            return f"<p>Clustering failed:</p><ul>{''.join(f'<li>{reason}</li>' for reason in sanity_issues)}</ul>"
+            return f"<p>Clustering failed:</p><ul>{''.join(f'<li>{issue}</li>' for issue in sanity_issues)}</ul>"
+
 
         # ========== KMeans ==========
         inertia, silhouette = [], []
