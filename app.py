@@ -564,16 +564,35 @@ def upload_file():
 
 
 
-            # ========== CLUSTERING WITH AUTO k SELECTION ==========
+            # ========== CLUSTERING WITH AUTO k SELECTION (with sanity checks) ==========
 
             # Drop rows with missing numeric values for clustering
             cluster_df = df[numeric_cols].dropna()
 
-            if len(cluster_df) >= 10:  # Ensure enough data for clustering
-                # Standardize the features
+            sanity_issue = False
+            sanity_reasons = []
+
+            if len(cluster_df) < 10:
+                sanity_issue = True
+                sanity_reasons.append("Not enough data rows for clustering (minimum 10 required).")
+
+            # Remove constant columns
+            cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
+            if cluster_df.shape[1] < 2:
+                sanity_issue = True
+                sanity_reasons.append("Too few variable columns for clustering after removing constants.")
+
+            # Standardize the features
+            if not sanity_issue:
                 scaler = StandardScaler()
                 X_scaled = scaler.fit_transform(cluster_df)
 
+                # Check for NaNs or Infs in scaled data
+                if not np.all(np.isfinite(X_scaled)):
+                    sanity_issue = True
+                    sanity_reasons.append("NaN or Inf values found in scaled data.")
+
+            if not sanity_issue:
                 # Try multiple k values
                 inertia = []
                 silhouette = []
@@ -588,17 +607,17 @@ def upload_file():
                 # Choose k with best silhouette score
                 best_k = K_range[silhouette.index(max(silhouette))]
 
-                # 🔽 ADD THIS BLOCK HERE
+                # Plot K Selection
                 plt.figure(figsize=(12, 5))
 
-                # Inertia Plot (Elbow)
+                # Elbow Method
                 plt.subplot(1, 2, 1)
                 plt.plot(K_range, inertia, marker='o')
                 plt.title("Elbow Method (Inertia)")
                 plt.xlabel("Number of clusters (k)")
                 plt.ylabel("Inertia")
 
-                # Silhouette Score Plot
+                # Silhouette Score
                 plt.subplot(1, 2, 2)
                 plt.plot(K_range, silhouette, marker='o', color='green')
                 plt.title("Silhouette Score")
@@ -609,8 +628,7 @@ def upload_file():
                 plt.savefig("static/k_selection.png")
                 plt.close()
 
-
-                # Final clustering with best k
+                # Final clustering
                 final_kmeans = KMeans(n_clusters=best_k, random_state=42)
                 final_labels = final_kmeans.fit_predict(X_scaled)
 
@@ -620,10 +638,8 @@ def upload_file():
                 cluster_summary = df.groupby("Cluster_Label")[numeric_cols].mean().round(2)
                 cluster_summary_html = cluster_summary.to_html(classes="table table-bordered", index_names=False)
 
-
-                # Optional: plot PCA for cluster visualization
+                # PCA plot
                 from sklearn.decomposition import PCA
-
                 pca = PCA(n_components=2)
                 pca_components = pca.fit_transform(X_scaled)
 
@@ -637,7 +653,9 @@ def upload_file():
                 plt.close()
 
             else:
-                cluster_summary_html = "<p>Not enough data for clustering.</p>"
+                cluster_summary_html = "<p>Clustering skipped due to sanity check failure:</p><ul>" + \
+                    "".join(f"<li>{reason}</li>" for reason in sanity_reasons) + "</ul>"
+
 
 
             # ========================== Stability Analysis ========================== # 
@@ -777,7 +795,8 @@ def upload_file():
                 stability_analysis=feature_stability_html,
                 missing_time_table=missing_time_html,
                 cluster_summary=cluster_summary_html,
-                cluster_plot="static/cluster_plot.png")
+                cluster_plot="static/cluster_plot.png",
+                column_options=numeric_cols.tolist())
 
     return render_template("index.html")
 
