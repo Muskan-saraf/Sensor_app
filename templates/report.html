@@ -156,6 +156,17 @@
         </div>
     </div>
 
+    <h4>Select columns for KMeans Clustering</h4>
+    <form method="POST" action="/custom_clustering">
+    {% for col in column_options %}
+        <div>
+        <input type="checkbox" name="selected_cols" value="{{ col }}"> {{ col }}
+        </div>
+    {% endfor %}
+    <button type="submit">Run Clustering</button>
+    </form>
+
+
     <!-- PDF Report Download -->
     <div class="text-center mt-4">
         <h3 class="section-title">Download Report</h3>

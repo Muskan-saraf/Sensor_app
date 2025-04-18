@@ -99,6 +99,8 @@ def upload_file():
                 else:
                     return "Error: Unsupported file type. Please upload a CSV or Excel file.", 400
                 
+                df.columns = df.columns.str.strip().str.replace('\n', '', regex=False)
+                
             except Exception as e:
                 return f"Error while reading the file: {str(e)}", 400
 
@@ -810,5 +812,115 @@ def download_pdf():
     print("Sending PDF file:", pdf_path)
     return send_file(pdf_path, as_attachment=True)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+
+
+
+@app.route("/custom_clustering", methods=["POST"])
+def custom_clustering():
+    selected_cols = [col.strip().replace('\n', '') for col in request.form.getlist("selected_cols")]
+
+    if not selected_cols:
+        return "Error: No columns selected for clustering.", 400
+
+    try:
+        # Load the uploaded file again
+        file_path = os.path.join(UPLOAD_FOLDER, os.listdir(UPLOAD_FOLDER)[0])
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext == ".csv":
+            df = pd.read_csv(file_path)
+        else:
+            df = pd.read_excel(file_path)
+
+        # Normalize column names
+        df.columns = df.columns.str.strip().str.replace('\n', '', regex=False)
+        normalized_df_cols = [col.lower() for col in df.columns]
+        normalized_selected = [col.lower() for col in selected_cols]
+
+        # Map normalized name back to original column names
+        col_map = {col.lower(): col for col in df.columns}
+        missing_cols = [col for col in normalized_selected if col not in normalized_df_cols]
+
+        if missing_cols:
+            return f"Error: The following columns are not found in the uploaded file: {missing_cols}", 400
+
+        # Correct mapped columns for selection
+        final_selected_cols = [col_map[col] for col in normalized_selected]
+
+        # Prepare the cleaned DataFrame for clustering
+        cluster_df = df[final_selected_cols].dropna()
+
+        # ========== Sanity Checks ==========
+        sanity_issue = False
+        sanity_reasons = []
+
+        if len(cluster_df) < 10:
+            sanity_issue = True
+            sanity_reasons.append("Not enough rows for clustering (minimum 10 required).")
+
+        cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
+        if cluster_df.shape[1] < 2:
+            sanity_issue = True
+            sanity_reasons.append("Too few variable columns after filtering.")
+
+        if not sanity_issue:
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(cluster_df)
+
+            if not np.all(np.isfinite(X_scaled)):
+                sanity_issue = True
+                sanity_reasons.append("NaN or Inf in scaled values.")
+
+        if sanity_issue:
+            return f"<p>Clustering failed:</p><ul>{''.join(f'<li>{r}</li>' for r in sanity_reasons)}</ul>"
+
+        # ========== KMeans Clustering ==========
+        inertia, silhouette = [], []
+        K_range = range(2, min(10, len(cluster_df)))
+
+        for k in K_range:
+            kmeans = KMeans(n_clusters=k, random_state=42)
+            labels = kmeans.fit_predict(X_scaled)
+            inertia.append(kmeans.inertia_)
+            silhouette.append(silhouette_score(X_scaled, labels))
+
+        best_k = K_range[silhouette.index(max(silhouette))]
+
+        # Plot Elbow and Silhouette
+        plt.figure(figsize=(12, 5))
+        plt.subplot(1, 2, 1)
+        plt.plot(K_range, inertia, marker='o')
+        plt.title("Elbow Method")
+
+        plt.subplot(1, 2, 2)
+        plt.plot(K_range, silhouette, marker='o', color='green')
+        plt.title("Silhouette Score")
+
+        plt.tight_layout()
+        plt.savefig("static/k_selection_custom.png")
+        plt.close()
+
+        # Final KMeans run
+        kmeans = KMeans(n_clusters=best_k, random_state=42)
+        final_labels = kmeans.fit_predict(X_scaled)
+
+        df['Custom_Cluster'] = np.nan
+        df.loc[cluster_df.index, 'Custom_Cluster'] = final_labels
+
+        # PCA for visualization
+        from sklearn.decomposition import PCA
+        pca = PCA(n_components=2)
+        components = pca.fit_transform(X_scaled)
+
+        pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
+        pca_df["Cluster"] = final_labels
+
+        plt.figure(figsize=(8, 6))
+        sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Cluster", palette="Set2")
+        plt.title(f"Custom KMeans (k={best_k})")
+        plt.savefig("static/custom_cluster_plot.png")
+        plt.close()
+
+        return render_template("custom_clustering.html", cluster_plot="static/custom_cluster_plot.png")
+
+    except Exception as e:
+        return f"Unexpected error: {e}", 500
