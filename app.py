@@ -758,10 +758,6 @@ def check_clustering_sanity(df, selected_cols, min_rows=10, correlation_threshol
 
     return issues, cluster_df, X_scaled
 
-
-
-
-
 @app.route("/custom_clustering", methods=["POST"])
 def custom_clustering():
     selected_cols = request.form.getlist("selected_cols")
