@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Data Analysis Upload</title>
+    <link rel="stylesheet" 
+          href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Arial', sans-serif;
+        }
+        .container {
+            max-width: 500px;
+            margin: 80px auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #007bff;
+        }
+        .upload-box {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 30px;
+            cursor: pointer;
+            background: #f0f8ff;
+            position: relative;
+        }
+        .upload-box:hover {
+            background: #e6f0ff;
+        }
+        .hidden-input {
+            display: none;
+        }
+        .btn-primary {
+            font-size: 18px;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .file-name {
+            margin-top: 10px;
+            font-weight: bold;
+            color: #007bff;
+            display: none; /* Initially hidden */
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>📊 Upload Your Data</h1>
+    
+    <form action="/" method="post" enctype="multipart/form-data">
+        <label class="upload-box" id="drop-area">
+            <input type="file" name="file" class="hidden-input" id="fileInput">
+            <p id="upload-text">Drag & Drop your file here or <strong>Click to Browse</strong></p>
+            <p class="file-name" id="file-name"></p> <!-- Displays the file name -->
+        </label>
+        <button type="submit" class="btn btn-primary w-100" id="upload-btn" disabled>📤 Upload</button>
+    </form>
+</div>
+
+<script>
+    const dropArea = document.getElementById('drop-area');
+    const fileInput = document.getElementById('fileInput');
+    const fileNameDisplay = document.getElementById('file-name');
+    const uploadText = document.getElementById('upload-text');
+    const uploadButton = document.getElementById('upload-btn');
+
+    // Function to update file name display
+    function updateFileName(file) {
+        if (file) {
+            fileNameDisplay.textContent = `📁 ${file.name}`;
+            fileNameDisplay.style.display = "block";
+            uploadText.style.display = "none";
+            uploadButton.removeAttribute("disabled"); // Enable upload button
+        }
+    }
+
+    // Handle click to browse
+    dropArea.addEventListener('click', () => fileInput.click());
+
+    // Handle file selection via browse
+    fileInput.addEventListener('change', (event) => {
+        updateFileName(event.target.files[0]);
+    });
+
+    // Handle drag and drop
+    dropArea.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropArea.style.background = '#e6f0ff';
+    });
+
+    dropArea.addEventListener('dragleave', () => {
+        dropArea.style.background = '#f0f8ff';
+    });
+
+    dropArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropArea.style.background = '#f0f8ff';
+        const file = e.dataTransfer.files[0];
+        fileInput.files = e.dataTransfer.files; // Assign to input
+        updateFileName(file);
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+</body>
+</html>
