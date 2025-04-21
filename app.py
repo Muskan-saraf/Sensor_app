@@ -32,6 +32,7 @@ app = Flask(__name__)
 
 UPLOAD_FOLDER = "uploads"
 TEMP_FOLDER = "temp"
+os.makedirs("static/plots", exist_ok=True)
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs("temp", exist_ok=True)  # Create temp folder if it doesn't exist
 
@@ -160,7 +161,8 @@ def upload_file():
                     fig.delaxes(axes[j])  
 
                 plt.tight_layout()
-                plt.savefig(f"static/histogram_{i}.png")
+                plt.savefig(f"static/plots/histogram_{i}.png")
+
                 plt.close()
 
     
@@ -185,7 +187,8 @@ def upload_file():
                 
             axes[-1].set_xlabel("Time")
             plt.tight_layout()
-            plt.savefig("static/timeseries_stacked.png", bbox_inches="tight")
+            plt.savefig("static/plots/timeseries_stacked.png", bbox_inches="tight")
+
             plt.close()
 
 
@@ -217,7 +220,8 @@ def upload_file():
 
             axes[-1].set_xlabel("Time")
             plt.tight_layout()
-            plt.savefig("static/anomalies_stacked.png", bbox_inches="tight")
+            plt.savefig("static/plots/anomalies_stacked.png", bbox_inches="tight")
+
             plt.close()
             
             # **Correlation Heatmap (Extra Large & Readable)**
@@ -230,7 +234,8 @@ def upload_file():
             plt.title("Correlation Heatmap", fontsize=20, fontweight="bold")
             
             # Save the heatmap
-            plt.savefig("static/correlation_heatmap_large.png", bbox_inches="tight")
+            plt.savefig("static/plots/correlation_heatmap_large.png", bbox_inches="tight")
+
             plt.close()
 
 
@@ -894,6 +899,13 @@ def custom_clustering():
 
     except Exception as e:
         return f"Unexpected error: {e}", 500
+
+@app.route('/download/<filename>')
+def download_plot(filename):
+    file_path = os.path.join("static/plots", filename)
+    if os.path.exists(file_path):
+        return send_file(file_path, as_attachment=True)
+    return "File not found.", 404
 
 
 
