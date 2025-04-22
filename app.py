@@ -476,7 +476,6 @@ def upload_file():
                         state_means, _ = kf.filter(valid_col_values.values.reshape(-1, 1))
                         
                         # ✅ Compute residuals safely
-                        # 
                         residuals = valid_col_values.values - state_means.flatten()
                         
                         # ✅ Count anomalies based on 3-sigma rule
@@ -909,14 +908,13 @@ def download_plot(filename):
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     return "File not found.", 404
-
-
 @app.route("/kpi_clustering", methods=["POST"])
 def kpi_clustering():
-    selected_kpis = request.form.getlist("kpi_cols")
+    cluster_cols = request.form.getlist("cluster_cols")  # D
+    profile_cols = request.form.getlist("profile_cols")  # A, B, C
 
-    if not selected_kpis:
-        return "Error: Please select at least one KPI column to summarize the clusters.", 400
+    if not cluster_cols or not profile_cols:
+        return "Error: Please select at least one clustering column and profiling column.", 400
 
     try:
         # Load the uploaded file
@@ -925,29 +923,29 @@ def kpi_clustering():
         df = pd.read_csv(file_path) if ext == ".csv" else pd.read_excel(file_path)
         df.columns = df.columns.str.replace('\n', '', regex=False)
 
-        # Select only rows with no NA in selected KPI columns
-        kpi_df = df[selected_kpis].dropna()
-        valid_indices = kpi_df.index
-        all_data_for_these = df.loc[valid_indices].copy()
+        # Drop NA from clustering columns
+        cluster_df = df[cluster_cols].dropna()
+        valid_indices = cluster_df.index
+        full_data = df.loc[valid_indices].copy()
 
         # Sanity check
-        if len(kpi_df) < 10:
+        if len(cluster_df) < 10:
             return "Error: Not enough valid rows for clustering.", 400
 
-        # Standardize KPI columns for clustering
+        # Standardize clustering columns
         scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(kpi_df)
+        X_scaled = scaler.fit_transform(cluster_df)
 
-        # Find best k (Elbow + Silhouette)
+        # Determine best K (elbow + silhouette)
         inertia, silhouette = [], []
-        K_range = range(2, min(10, len(kpi_df)))
+        K_range = range(2, min(10, len(cluster_df)))
         for k in K_range:
             kmeans = KMeans(n_clusters=k, random_state=42)
             labels = kmeans.fit_predict(X_scaled)
             inertia.append(kmeans.inertia_)
             silhouette.append(silhouette_score(X_scaled, labels))
 
-        # Elbow detection
+        # Elbow method
         x = np.array(list(K_range))
         y = np.array(inertia)
         line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
@@ -964,24 +962,17 @@ def kpi_clustering():
         # Final clustering
         kmeans = KMeans(n_clusters=best_k, random_state=42)
         cluster_labels = kmeans.fit_predict(X_scaled)
+        full_data["Cluster"] = cluster_labels
 
-        # Add cluster labels to full data (all columns, not just KPIs)
-        all_data_for_these["Cluster"] = cluster_labels
+        # Profile A, B, C by cluster
+        profiling_summary = full_data.groupby("Cluster")[profile_cols].mean().round(2)
+        profile_html = profiling_summary.to_html(classes="table table-bordered")
 
-        # Cluster summary: average of KPI columns
-        kpi_cluster_summary = (
-            all_data_for_these.groupby("Cluster")[selected_kpis].mean().round(2)
-        )
-        kpi_cluster_html = kpi_cluster_summary.to_html(classes="table table-bordered")
+        # Full table (all data + cluster)
+        full_html = full_data.to_html(classes="table table-striped", index=False)
 
-        # Full table (all columns + cluster)
-        full_cluster_html = all_data_for_these.to_html(
-            classes="table table-striped", index=False
-        )
-
-        # PCA for visualization (only if at least 2 features)
+        # PCA plot if 2+ clustering features
         plot_path = "static/kpi_cluster_plot.png"
-
         if X_scaled.shape[1] >= 2:
             pca = PCA(n_components=2)
             pca_result = pca.fit_transform(X_scaled)
@@ -990,32 +981,30 @@ def kpi_clustering():
 
             plt.figure(figsize=(8, 6))
             sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Cluster", palette="Set2", s=80)
-            plt.title("Cluster Visualization (based on selected KPIs)")
+            plt.title("Cluster Visualization (based on selected column(s))")
             plt.savefig(plot_path)
             plt.close()
 
         else:
-            # Plot a boxplot of the single KPI column across clusters
-            single_kpi = selected_kpis[0]
-            temp_df = df.loc[cluster_df.index, [single_kpi]].copy()
-            temp_df["Cluster"] = cluster_labels
+            # Boxplot for single clustering feature
+            cluster_col = cluster_cols[0]
+            temp_df = full_data[[cluster_col, "Cluster"]].copy()
 
             plt.figure(figsize=(8, 6))
-            sns.boxplot(data=temp_df, x="Cluster", y=single_kpi, palette="Set2")
-            plt.title(f"Distribution of {single_kpi} by Cluster")
+            sns.boxplot(data=temp_df, x="Cluster", y=cluster_col, palette="Set2")
+            plt.title(f"Distribution of {cluster_col} by Cluster")
             plt.savefig(plot_path)
             plt.close()
-
 
         return render_template(
             "custom_clustering.html",
             cluster_plot=plot_path,
-            cluster_summary=kpi_cluster_html,
-            full_table=full_cluster_html
+            cluster_summary=profile_html,
+            full_table=full_html
         )
 
     except Exception as e:
-        return f"Unexpected error during KPI-based clustering: {e}", 500
+        return f"Unexpected error during clustering: {e}", 500
 
 
 

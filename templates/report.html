@@ -207,14 +207,21 @@
     </script>
 
 
-<h5>Select KPI Columns (for interpreting cluster results):</h5>
+<h5>Select Column(s) to Cluster On (e.g. D):</h5>
 <form action="/kpi_clustering" method="POST">
   {% for col in column_options %}
-    <label><input type="checkbox" name="kpi_cols" value="{{ col }}"> {{ col }}</label><br>
+    <label><input type="checkbox" name="cluster_cols" value="{{ col }}"> {{ col }}</label><br>
   {% endfor %}
+
+  <br><h5>Select KPI Columns to Interpret Clusters (e.g. A, B, C):</h5>
+  {% for col in column_options %}
+    <label><input type="checkbox" name="profile_cols" value="{{ col }}"> {{ col }}</label><br>
+  {% endfor %}
+
   <br>
-  <input type="submit" value="Run Clustering with KPI Interpretation" class="btn btn-success">
+  <input type="submit" value="Run Clustering" class="btn btn-success">
 </form>
+
 
 
 
