@@ -207,20 +207,74 @@
     </script>
 
 
-<h5>Select Column(s) to Cluster On (e.g. D):</h5>
-<form action="/kpi_clustering" method="POST">
-  {% for col in column_options %}
-    <label><input type="checkbox" name="cluster_cols" value="{{ col }}"> {{ col }}</label><br>
-  {% endfor %}
+<!-- Bootstrap 5 Form to Select Clustering and KPI Columns -->
+<div class="card mb-5 shadow-sm">
+    <div class="card-body">
+        <h3 class="section-title mb-4 text-center">🧮 Select Columns for KMeans Clustering</h3>
 
-  <br><h5>Select KPI Columns to Interpret Clusters (e.g. A, B, C):</h5>
-  {% for col in column_options %}
-    <label><input type="checkbox" name="profile_cols" value="{{ col }}"> {{ col }}</label><br>
-  {% endfor %}
+        <form action="/kpi_clustering" method="POST">
 
-  <br>
-  <input type="submit" value="Run Clustering" class="btn btn-success">
-</form>
+            <!-- Clustering Columns -->
+            <h5 class="text-primary">📊 Clustering Column(s) (e.g., D)</h5>
+            <div class="mb-3 text-center">
+                <button type="button" class="btn btn-outline-secondary me-2" onclick="toggleCheckboxes('cluster_cols', true)">Select All</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="toggleCheckboxes('cluster_cols', false)">Unselect All</button>
+            </div>
+            <div class="row">
+                {% for col in column_options %}
+                <div class="col-md-4 col-sm-6 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               name="cluster_cols" value="{{ col | e }}"
+                               id="cluster_{{ loop.index }}">
+                        <label class="form-check-label" for="cluster_{{ loop.index }}">
+                            {{ col }}
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- KPI Columns -->
+            <hr class="my-4">
+            <h5 class="text-success">📌 KPI Columns to Interpret Clusters (e.g., A, B, C)</h5>
+            <div class="mb-3 text-center">
+                <button type="button" class="btn btn-outline-secondary me-2" onclick="toggleCheckboxes('profile_cols', true)">Select All</button>
+                <button type="button" class="btn btn-outline-secondary" onclick="toggleCheckboxes('profile_cols', false)">Unselect All</button>
+            </div>
+            <div class="row">
+                {% for col in column_options %}
+                <div class="col-md-4 col-sm-6 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox"
+                               name="profile_cols" value="{{ col | e }}"
+                               id="profile_{{ loop.index }}">
+                        <label class="form-check-label" for="profile_{{ loop.index }}">
+                            {{ col }}
+                        </label>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- Submit -->
+            <div class="text-center mt-4">
+                <button type="submit" class="btn btn-primary btn-lg px-4">
+                    🚀 Run Clustering
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Script to handle Select/Unselect All -->
+<script>
+function toggleCheckboxes(groupName, state) {
+    const checkboxes = document.querySelectorAll(`input[name="${groupName}"]`);
+    checkboxes.forEach(cb => cb.checked = state);
+}
+</script>
+
 
 
 

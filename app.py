@@ -908,6 +908,8 @@ def download_plot(filename):
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     return "File not found.", 404
+
+
 @app.route("/kpi_clustering", methods=["POST"])
 def kpi_clustering():
     cluster_cols = request.form.getlist("cluster_cols")  # D
@@ -971,7 +973,7 @@ def kpi_clustering():
         # Full table (all data + cluster)
         full_html = full_data.to_html(classes="table table-striped", index=False)
 
-        # PCA plot if 2+ clustering features
+        # PCA or boxplot
         plot_path = "static/kpi_cluster_plot.png"
         if X_scaled.shape[1] >= 2:
             pca = PCA(n_components=2)
@@ -984,7 +986,6 @@ def kpi_clustering():
             plt.title("Cluster Visualization (based on selected column(s))")
             plt.savefig(plot_path)
             plt.close()
-
         else:
             # Boxplot for single clustering feature
             cluster_col = cluster_cols[0]
@@ -996,15 +997,71 @@ def kpi_clustering():
             plt.savefig(plot_path)
             plt.close()
 
+        # Mean ± Std Dev Comparison Plot
+        # Define cluster_means and cluster_stds before plotting
+        cluster_means = full_data.groupby("Cluster")[cluster_cols].mean()
+        cluster_stds = full_data.groupby("Cluster")[cluster_cols].std()
+
+        plot_mean_std_path = "static/mean_std_comparison.png"
+        cluster_stats = full_data.groupby("Cluster")[cluster_cols].agg(['mean', 'std'])
+
+        cluster_stats.columns = ['_'.join(col).strip() for col in cluster_stats.columns]
+        cluster_stats.reset_index(inplace=True)
+
+        overall_mean = full_data[cluster_cols].mean()
+        overall_std = full_data[cluster_cols].std()
+
+        from matplotlib import cm
+
+        # Setup
+        fig, ax = plt.subplots(figsize=(12, 6))
+        x_pos = np.arange(len(cluster_cols))
+        width = 0.15
+        num_clusters = len(cluster_means)
+        colors = cm.get_cmap("Set2", num_clusters + 1)
+
+        # Plot each cluster's mean with std dev
+        for i, (cluster_name, row) in enumerate(cluster_means.iterrows()):
+            means = row.values
+            stds = cluster_stds.loc[cluster_name].values
+            shifted_x = x_pos + (i - num_clusters / 2) * width
+
+            ax.errorbar(
+                shifted_x, means, yerr=stds, fmt='o', capsize=5,
+                color=colors(i), label=f"Cluster {cluster_name}",
+                markersize=8, linewidth=1.5
+            )
+
+        # Plot overall mean ± std as diamond with error bars
+        overall_shifted = x_pos + (num_clusters / 2 + 0.2) * width
+        ax.errorbar(
+            overall_shifted, overall_mean.values, yerr=overall_std.values,
+            fmt='D', capsize=6, color="black", markersize=9, linewidth=2,
+            label="Overall", markerfacecolor='white'
+        )
+
+        # Style
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels(cluster_cols, rotation=45, ha="right", fontsize=11)
+        ax.set_ylabel("Mean Value ± Std Dev", fontsize=12)
+        ax.set_title("Mean ± Standard Deviation of Clustering Columns by Cluster", fontsize=14, weight="bold")
+        ax.legend(title="Cluster", bbox_to_anchor=(1.05, 1), loc="upper left")
+        plt.tight_layout()
+        plt.savefig(plot_mean_std_path, bbox_inches='tight')  # ✅ Fix applied here
+        plt.close()
+
+        # Return everything
         return render_template(
             "custom_clustering.html",
             cluster_plot=plot_path,
+            mean_std_plot=plot_mean_std_path,
             cluster_summary=profile_html,
             full_table=full_html
         )
 
     except Exception as e:
         return f"Unexpected error during clustering: {e}", 500
+
 
 
 
