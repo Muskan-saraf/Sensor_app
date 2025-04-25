@@ -732,6 +732,32 @@ def download_plot(filename):
         return send_file(file_path, as_attachment=True)
     return "File not found.", 404
 
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib import pyplot as plt
+from PIL import Image
+
+def generate_pdf_report(image_paths, profile_html, full_html, output_path):
+    with PdfPages(output_path) as pdf:
+        # Add images
+        for img_path in image_paths:
+            img = Image.open(img_path)
+            fig, ax = plt.subplots(figsize=(img.width / 100, img.height / 100))
+            ax.imshow(img)
+            ax.axis('off')
+            pdf.savefig(fig, bbox_inches='tight')
+            plt.close()
+
+        # Add summary text page
+        fig, ax = plt.subplots(figsize=(8.5, 11))
+        ax.axis('off')
+        ax.text(0, 1.0, "Cluster Summary Table", fontsize=14, weight='bold')
+        ax.text(0, 0.95, profile_html, fontsize=9, wrap=True)
+        ax.text(0, 0.65, "Full Table", fontsize=14, weight='bold')
+        ax.text(0, 0.60, full_html, fontsize=9, wrap=True)
+        pdf.savefig(fig, bbox_inches='tight')
+        plt.close()
+
+
 
 
 @app.route("/kpi_clustering", methods=["POST"])
@@ -908,6 +934,17 @@ def kpi_clustering():
         plt.close()
 
 
+        # Generate PDF report
+        image_paths = [plot_path, composite_plot_path, comparison_plot_path, diverging_plot_path]
+        pdf_output_path = os.path.join("static", "kpi_clustering_report.pdf")
+        generate_pdf_report(image_paths, profile_html, full_html, pdf_output_path)
+
+        # Send download link to template
+        download_link = "/" + pdf_output_path
+
+
+
+
 
         # Return everything
         return render_template(
@@ -916,7 +953,8 @@ def kpi_clustering():
             mean_std_plot=composite_plot_path,
             cluster_summary=profile_html,
             full_table=full_html,
-            comparison_plot_1=diverging_plot_path
+            comparison_plot_1=diverging_plot_path,
+            download_link=download_link
         )
 
     except Exception as e:
