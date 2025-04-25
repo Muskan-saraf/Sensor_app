@@ -942,10 +942,6 @@ def kpi_clustering():
         # Send download link to template
         download_link = "/" + pdf_output_path
 
-
-
-
-
         # Return everything
         return render_template(
             "custom_clustering.html",
