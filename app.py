@@ -721,6 +721,8 @@ def download_pdf():
 
     
 from sklearn.decomposition import PCA
+from matplotlib import cm
+
 
 
 @app.route('/download/<filename>')
@@ -729,6 +731,7 @@ def download_plot(filename):
     if os.path.exists(file_path):
         return send_file(file_path, as_attachment=True)
     return "File not found.", 404
+
 
 
 @app.route("/kpi_clustering", methods=["POST"])
@@ -808,7 +811,6 @@ def kpi_clustering():
             plt.savefig(plot_path)
             plt.close()
         else:
-            # Boxplot for single clustering feature
             cluster_col = cluster_cols[0]
             temp_df = full_data[[cluster_col, "Cluster"]].copy()
 
@@ -818,105 +820,107 @@ def kpi_clustering():
             plt.savefig(plot_path)
             plt.close()
 
-        # Mean ± Std Dev Comparison Plot
-        # Define cluster_means and cluster_stds before plotting
-        # Compute composite score (average across all clustering columns)
+        # ✅ Composite Score Plot (mean ± std of combined clustering columns)
         full_data["CompositeScore"] = full_data[cluster_cols].mean(axis=1)
-
-        # Group by cluster
         cluster_stats = full_data.groupby("Cluster")["CompositeScore"].agg(['mean', 'std'])
         overall_mean = full_data["CompositeScore"].mean()
         overall_std = full_data["CompositeScore"].std()
 
-        # Plot
-        plot_mean_std_path = "static/composite_mean_std.png"
+        composite_plot_path = "static/composite_mean_std.png"
         fig, ax = plt.subplots(figsize=(8, 6))
         x_pos = np.arange(len(cluster_stats))
 
-        # Cluster-wise mean ± std
         ax.errorbar(
             x_pos, cluster_stats["mean"], yerr=cluster_stats["std"],
             fmt='o', capsize=5, color="dodgerblue", label="Cluster Mean ± Std", markersize=8, linewidth=2
         )
 
-        # Overall
         ax.errorbar(
             [len(x_pos)], [overall_mean], yerr=[overall_std],
             fmt='D', color="black", capsize=6, label="Overall", markersize=9, markerfacecolor='white'
         )
 
-        # Style
         ax.set_xticks(list(x_pos) + [len(x_pos)])
         ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index] + ["Overall"], rotation=0)
         ax.set_ylabel("Composite Score (Mean ± Std Dev)")
         ax.set_title("Mean ± Std Dev of Combined Clustering Columns", fontsize=13)
-        ax.legend()
         plt.tight_layout()
-        plt.savefig(plot_mean_std_path, bbox_inches="tight")
+        plt.savefig(composite_plot_path, bbox_inches="tight")
         plt.close()
 
 
-        plot_mean_std_path = "static/mean_std_comparison.png"
-        cluster_stats = full_data.groupby("Cluster")[cluster_cols].agg(['mean', 'std'])
+        # 📊 Plot: Comparison of Cluster Means vs Overall (no overall point)
+        cluster_stats = full_data.groupby("Cluster")["CompositeScore"].agg(['mean', 'std'])
+        overall_mean = full_data["CompositeScore"].mean()
 
-        cluster_stats.columns = ['_'.join(col).strip() for col in cluster_stats.columns]
-        cluster_stats.reset_index(inplace=True)
+        comparison_plot_path = "static/composite_vs_overall.png"
+        fig, ax = plt.subplots(figsize=(8, 6))
+        x_pos = np.arange(len(cluster_stats))
 
-        overall_mean = full_data[cluster_cols].mean()
-        overall_std = full_data[cluster_cols].std()
-
-        from matplotlib import cm
-
-        # Setup
-        fig, ax = plt.subplots(figsize=(12, 6))
-        x_pos = np.arange(len(cluster_cols))
-        width = 0.15
-        num_clusters = len(cluster_means)
-        colors = cm.get_cmap("Set2", num_clusters + 1)
-
-        # Plot each cluster's mean with std dev
-        for i, (cluster_name, row) in enumerate(cluster_means.iterrows()):
-            means = row.values
-            stds = cluster_stds.loc[cluster_name].values
-            shifted_x = x_pos + (i - num_clusters / 2) * width
-
-            ax.errorbar(
-                shifted_x, means, yerr=stds, fmt='o', capsize=5,
-                color=colors(i), label=f"Cluster {cluster_name}",
-                markersize=8, linewidth=1.5
-            )
-
-        # Plot overall mean ± std as diamond with error bars
-        overall_shifted = x_pos + (num_clusters / 2 + 0.2) * width
-        ax.errorbar(
-            overall_shifted, overall_mean.values, yerr=overall_std.values,
-            fmt='D', capsize=6, color="black", markersize=9, linewidth=2,
-            label="Overall", markerfacecolor='white'
+        # Bar plot
+        bars = ax.bar(
+            x_pos, cluster_stats["mean"], yerr=cluster_stats["std"],
+            capsize=8, color="skyblue", edgecolor="black", label="Cluster Mean ± Std"
         )
+
+        # Add overall mean line
+        ax.axhline(overall_mean, color='red', linestyle='--', linewidth=2, label=f"Overall Mean = {overall_mean:.2f}")
+
+        # Annotate difference from overall
+        for i, mean in enumerate(cluster_stats["mean"]):
+            diff = mean - overall_mean
+            ax.text(i, mean + 0.05 * mean, f"{diff:+.2f}", ha='center', fontsize=10, color='black')
 
         # Style
         ax.set_xticks(x_pos)
-        ax.set_xticklabels(cluster_cols, rotation=45, ha="right", fontsize=11)
-        ax.set_ylabel("Mean Value ± Std Dev", fontsize=12)
-        ax.set_title("Mean ± Standard Deviation of Clustering Columns by Cluster", fontsize=14, weight="bold")
-        ax.legend(title="Cluster", bbox_to_anchor=(1.05, 1), loc="upper left")
+        ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index])
+        ax.set_ylabel("Composite Score")
+        ax.set_title("Cluster Means Compared to Overall", fontsize=13)
+        ax.legend()
         plt.tight_layout()
-        plt.savefig(plot_mean_std_path, bbox_inches='tight')  # ✅ Fix applied here
+        plt.savefig(comparison_plot_path, bbox_inches="tight")
         plt.close()
+
+
+        # Compute difference from overall mean
+        cluster_stats["diff"] = cluster_stats["mean"] - overall_mean
+
+        # Plot
+        diverging_plot_path = "static/diverging_comparison.png"
+        fig, ax = plt.subplots(figsize=(8, 6))
+        x_pos = np.arange(len(cluster_stats))
+        colors = ['green' if d > 0 else 'red' for d in cluster_stats["diff"]]
+
+        bars = ax.bar(x_pos, cluster_stats["diff"], color=colors, edgecolor='black')
+
+        # Annotate bars
+        for i, diff in enumerate(cluster_stats["diff"]):
+            ax.text(i, diff + 0.05 * diff, f"{diff:+.2f}", ha='center', fontsize=10)
+
+        # Style
+        ax.axhline(0, color='black', linewidth=1)
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index])
+        ax.set_ylabel("Deviation from Overall Mean")
+        ax.set_title("Cluster Deviation from Overall Composite Score")
+        plt.tight_layout()
+        plt.savefig(diverging_plot_path, bbox_inches="tight")
+        plt.close()
+
+
 
         # Return everything
         return render_template(
             "custom_clustering.html",
             cluster_plot=plot_path,
-            mean_std_plot=plot_mean_std_path,
+            mean_std_plot=composite_plot_path,
             cluster_summary=profile_html,
-            full_table=full_html
+            full_table=full_html,
+            comparison_plot_1=diverging_plot_path
         )
 
     except Exception as e:
         return f"Unexpected error during clustering: {e}", 500
-
-
 
 
 if __name__ == "__main__":
