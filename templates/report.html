@@ -170,41 +170,6 @@
         
     </div>
 
-    <!-- Improved KMeans Column Selection -->
-    <div class="card mb-4">
-        <h3 class="section-title">Select Columns for KMeans Clustering</h3>
-        <form method="POST" action="/custom_clustering">
-            <div class="mb-3 text-center">
-                <button type="button" class="btn btn-outline-secondary me-2" onclick="selectAll(true)">Select All</button>
-                <button type="button" class="btn btn-outline-secondary" onclick="selectAll(false)">Unselect All</button>
-            </div>
-            <div class="row">
-                {% for col in column_options %}
-                <div class="col-md-4 col-sm-6 mb-2">
-                    <div class="form-check">
-                        <input class="form-check-input" type="checkbox" 
-                            name="selected_cols" value="{{ col | e }}" id="col_{{ loop.index }}">
-                        <label class="form-check-label" for="col_{{ loop.index }}">
-                            {{ col }}
-                        </label>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            <div class="text-center mt-3">
-                <button type="submit" class="btn btn-primary">
-                    Run Clustering
-                </button>
-            </div>
-        </form>
-    </div>
-
-    <script>
-    function selectAll(state) {
-        const checkboxes = document.querySelectorAll('input[name="selected_cols"]');
-        checkboxes.forEach(cb => cb.checked = state);
-    }
-    </script>
 
 
 <!-- Bootstrap 5 Form to Select Clustering and KPI Columns -->
@@ -215,7 +180,7 @@
         <form action="/kpi_clustering" method="POST">
 
             <!-- Clustering Columns -->
-            <h5 class="text-primary">📊 Clustering Column(s) (e.g., D)</h5>
+            <h5 class="text-primary">📊 Clustering Column(s)</h5>
             <div class="mb-3 text-center">
                 <button type="button" class="btn btn-outline-secondary me-2" onclick="toggleCheckboxes('cluster_cols', true)">Select All</button>
                 <button type="button" class="btn btn-outline-secondary" onclick="toggleCheckboxes('cluster_cols', false)">Unselect All</button>
@@ -237,7 +202,7 @@
 
             <!-- KPI Columns -->
             <hr class="my-4">
-            <h5 class="text-success">📌 KPI Columns to Interpret Clusters (e.g., A, B, C)</h5>
+            <h5 class="text-success">📌 KPI Columns to Interpret Clusters</h5>
             <div class="mb-3 text-center">
                 <button type="button" class="btn btn-outline-secondary me-2" onclick="toggleCheckboxes('profile_cols', true)">Select All</button>
                 <button type="button" class="btn btn-outline-secondary" onclick="toggleCheckboxes('profile_cols', false)">Unselect All</button>

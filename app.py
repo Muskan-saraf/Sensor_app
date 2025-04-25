@@ -719,185 +719,6 @@ def download_pdf():
     return send_file(pdf_path, as_attachment=True)
 
 
-def check_clustering_sanity(df, selected_cols, min_rows=10, correlation_threshold=0.95):
-    issues = []
-    X_scaled = None  # <- Initialize here
-
-    # 1. Column existence
-    missing_cols = [col for col in selected_cols if col not in df.columns]
-    if missing_cols:
-        issues.append(f"Missing columns: {missing_cols}")
-        return issues, None, None  # Also return X_scaled as None
-
-    cluster_df = df[selected_cols].dropna()
-
-    # 2. Check row count
-    if len(cluster_df) < min_rows:
-        issues.append(f"Not enough rows for clustering (minimum {min_rows} required).")
-
-    # 3. Drop non-variable columns
-    cluster_df = cluster_df.loc[:, cluster_df.nunique() > 1]
-    if cluster_df.shape[1] < 2:
-        issues.append("Too few variable columns after filtering constant values.")
-
-    # 4. Data type check
-    if not np.all([np.issubdtype(dtype, np.number) for dtype in cluster_df.dtypes]):
-        issues.append("All selected columns must be numeric.")
-
-    # 5. Correlation check
-    if cluster_df.shape[1] >= 2:
-        corr_matrix = cluster_df.corr().abs()
-        upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
-        high_corr = [col for col in upper.columns if any(upper[col] > correlation_threshold)]
-        if high_corr:
-            issues.append(f"Highly correlated features (>{correlation_threshold}): {high_corr}")
-
-    # 6. NaN or Inf after scaling
-    if not issues:
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(cluster_df)
-        if not np.all(np.isfinite(X_scaled)):
-            issues.append("NaN or Inf values found after scaling.")
-            X_scaled = None  # Safety: avoid returning invalid value
-
-    return issues, cluster_df, X_scaled
-
-@app.route("/custom_clustering", methods=["POST"])
-def custom_clustering():
-    selected_cols = request.form.getlist("selected_cols")
-
-    if not selected_cols:
-        return "Error: No columns selected for clustering.", 400
-
-    try:
-        # Load uploaded file
-        file_path = os.path.join(UPLOAD_FOLDER, os.listdir(UPLOAD_FOLDER)[0])
-        ext = os.path.splitext(file_path)[1].lower()
-        df = pd.read_csv(file_path) if ext == ".csv" else pd.read_excel(file_path)
-
-        # Optional: Only strip newlines, nothing else
-        df.columns = df.columns.str.replace('\n', '', regex=False)
-
-        # Debug print
-        print("\n=== DEBUG: Uploaded columns ===")
-        for col in df.columns:
-            print(f"[{col}]")
-
-        print("\n=== DEBUG: Selected columns ===")
-        for col in selected_cols:
-            print(f"[{col}]")
-
-        # Check for exact column matches
-        missing_cols = [col for col in selected_cols if col not in df.columns]
-
-        # If some selected columns are not found, try fuzzy debugging
-        if missing_cols:
-            debug_msg = "<strong>Error:</strong> The following columns were not matched:<ul>"
-            for missing in missing_cols:
-                close_matches = [real for real in df.columns if real.strip() == missing.strip()]
-                if close_matches:
-                    debug_msg += f"<li>{missing} → (Did you mean: {close_matches[0]})</li>"
-                else:
-                    debug_msg += f"<li>{missing} → No match found</li>"
-            debug_msg += "</ul>"
-            return debug_msg, 400
-
-        # Safe to proceed
-        cluster_df = df[selected_cols].dropna()
-
-        # ========== Sanity Checks ==========
-        # Enhanced sanity check
-        sanity_issues, cluster_df, X_scaled = check_clustering_sanity(df, selected_cols)
-
-
-        if sanity_issues:
-            return f"<p>Clustering failed:</p><ul>{''.join(f'<li>{issue}</li>' for issue in sanity_issues)}</ul>"
-
-
-        # ========== KMeans ==========
-        inertia, silhouette = [], []
-        K_range = range(2, min(10, len(cluster_df)))
-        for k in K_range:
-            kmeans = KMeans(n_clusters=k, random_state=42)
-            labels = kmeans.fit_predict(X_scaled)
-            inertia.append(kmeans.inertia_)
-            silhouette.append(silhouette_score(X_scaled, labels))
-
-        # Elbow method: find the "knee point" using the distance from a line between first and last points
-        from scipy.spatial.distance import euclidean
-
-        # Normalize inertia for better elbow detection
-        x = np.array(list(K_range))
-        y = np.array(inertia)
-
-        # Line from first to last point
-        line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
-        line_vector_norm = line_vector / np.linalg.norm(line_vector)
-
-        # Compute distances
-        distances = []
-        for i in range(len(x)):
-            point = np.array([x[i] - x[0], y[i] - y[0]])
-            proj_len = np.dot(point, line_vector_norm)
-            proj = proj_len * line_vector_norm
-            dist = np.linalg.norm(point - proj)
-            distances.append(dist)
-
-        # Elbow point = max distance
-        best_k = x[np.argmax(distances)]
-
-
-        plt.figure(figsize=(12, 5))
-        plt.subplot(1, 2, 1)
-        plt.plot(K_range, inertia, marker='o')
-        plt.title("Elbow Method")
-
-        plt.subplot(1, 2, 2)
-        plt.plot(K_range, silhouette, marker='o', color='green')
-        plt.title("Silhouette Score")
-
-        plt.tight_layout()
-        plt.savefig("static/k_selection_custom.png")
-        plt.close()
-
-        # Final clustering and PCA
-        kmeans = KMeans(n_clusters=best_k, random_state=42)
-        final_labels = kmeans.fit_predict(X_scaled)
-
-        # Create cluster summary table (mean values for each feature)
-        custom_cluster_summary = cluster_df.copy()
-        custom_cluster_summary['Cluster_Label'] = final_labels
-        custom_cluster_summary = custom_cluster_summary.groupby('Cluster_Label').mean().round(2)
-
-        # Convert to HTML for rendering
-        custom_cluster_summary_html = custom_cluster_summary.to_html(classes="table table-bordered")
-
-
-        df['Custom_Cluster'] = np.nan
-        df.loc[cluster_df.index, 'Custom_Cluster'] = final_labels
-
-        from sklearn.decomposition import PCA
-
-        pca = PCA(n_components=2)
-        components = pca.fit_transform(X_scaled)
-        pca_df = pd.DataFrame(components, columns=["PC1", "PC2"])
-        pca_df["Cluster"] = final_labels
-
-        plt.figure(figsize=(8, 6))
-        sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Cluster", palette="Set2")
-        plt.title(f"Custom KMeans (k={best_k})")
-        plt.savefig("static/custom_cluster_plot.png")
-        plt.close()
-
-        return render_template(
-            "custom_clustering.html",
-            cluster_plot="static/custom_cluster_plot.png",
-            cluster_summary=custom_cluster_summary_html
-        )
-
-
-    except Exception as e:
-        return f"Unexpected error: {e}", 500
     
 from sklearn.decomposition import PCA
 
@@ -999,8 +820,41 @@ def kpi_clustering():
 
         # Mean ± Std Dev Comparison Plot
         # Define cluster_means and cluster_stds before plotting
-        cluster_means = full_data.groupby("Cluster")[cluster_cols].mean()
-        cluster_stds = full_data.groupby("Cluster")[cluster_cols].std()
+        # Compute composite score (average across all clustering columns)
+        full_data["CompositeScore"] = full_data[cluster_cols].mean(axis=1)
+
+        # Group by cluster
+        cluster_stats = full_data.groupby("Cluster")["CompositeScore"].agg(['mean', 'std'])
+        overall_mean = full_data["CompositeScore"].mean()
+        overall_std = full_data["CompositeScore"].std()
+
+        # Plot
+        plot_mean_std_path = "static/composite_mean_std.png"
+        fig, ax = plt.subplots(figsize=(8, 6))
+        x_pos = np.arange(len(cluster_stats))
+
+        # Cluster-wise mean ± std
+        ax.errorbar(
+            x_pos, cluster_stats["mean"], yerr=cluster_stats["std"],
+            fmt='o', capsize=5, color="dodgerblue", label="Cluster Mean ± Std", markersize=8, linewidth=2
+        )
+
+        # Overall
+        ax.errorbar(
+            [len(x_pos)], [overall_mean], yerr=[overall_std],
+            fmt='D', color="black", capsize=6, label="Overall", markersize=9, markerfacecolor='white'
+        )
+
+        # Style
+        ax.set_xticks(list(x_pos) + [len(x_pos)])
+        ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index] + ["Overall"], rotation=0)
+        ax.set_ylabel("Composite Score (Mean ± Std Dev)")
+        ax.set_title("Mean ± Std Dev of Combined Clustering Columns", fontsize=13)
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig(plot_mean_std_path, bbox_inches="tight")
+        plt.close()
+
 
         plot_mean_std_path = "static/mean_std_comparison.png"
         cluster_stats = full_data.groupby("Cluster")[cluster_cols].agg(['mean', 'std'])
