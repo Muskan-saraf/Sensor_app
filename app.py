@@ -908,37 +908,39 @@ def kpi_clustering():
         plt.close()
 
 
-        # Compute difference from overall mean
+        # Compute deviation from overall mean and std
         cluster_stats["diff"] = cluster_stats["mean"] - overall_mean
+        cluster_stats["std_diff"] = cluster_stats["std"] - overall_std
+        cluster_stats["std_diff_abs"] = cluster_stats["std_diff"].abs()  # ensure yerr is non-negative
 
-        # Plot: Diverging bar with SD annotation (Improved)
+        # Plot: Diverging bar with ΔSD annotation
         diverging_plot_path = "static/diverging_comparison.png"
         fig, ax = plt.subplots(figsize=(8, 6))
         x_pos = np.arange(len(cluster_stats))
         colors = ['green' if d > 0 else 'red' for d in cluster_stats["diff"]]
 
         bars = ax.bar(
-            x_pos, cluster_stats["diff"], yerr=cluster_stats["std"],
+            x_pos, cluster_stats["diff"], yerr=cluster_stats["std_diff_abs"],
             capsize=6, color=colors, edgecolor='black', alpha=0.8
         )
 
-        # Annotate with two lines: diff and std
-        for i, (diff, std) in enumerate(zip(cluster_stats["diff"], cluster_stats["std"])):
-            offset = 2 if diff >= 0 else -2  # base vertical offset
-            spacing = 1.5 if diff >= 0 else -3  # space between lines
-            
+        # Annotate with deviation from mean and actual std_diff
+        for i, (diff, std_diff) in enumerate(zip(cluster_stats["diff"], cluster_stats["std_diff"])):
+            offset = 2 if diff >= 0 else -2
+            spacing = 1.5 if diff >= 0 else -3
             ax.text(i, diff + offset, f"{diff:+.2f}", ha='center', fontsize=10, color='black')
-            ax.text(i, diff + offset + spacing, f"±{std:.2f}", ha='center', fontsize=9, color='gray')
+            ax.text(i, diff + offset + spacing, f"ΔSD: {std_diff:+.2f}", ha='center', fontsize=9, color='gray')
 
         # Style
         ax.axhline(0, color='black', linewidth=1)
         ax.set_xticks(x_pos)
         ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index])
-        ax.set_ylabel("Deviation from Overall Mean ± SD")
-        ax.set_title("Cluster Deviation from Overall Composite Score (with Std Dev)")
+        ax.set_ylabel("Deviation from Overall Mean ± ΔSD")
+        ax.set_title("Cluster Deviation from Overall Composite Score")
         plt.tight_layout()
         plt.savefig(diverging_plot_path, bbox_inches="tight")
         plt.close()
+
 
 
 
