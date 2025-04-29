@@ -718,7 +718,6 @@ def download_pdf():
     print("Sending PDF file:", pdf_path)
     return send_file(pdf_path, as_attachment=True)
 
-
     
 from sklearn.decomposition import PCA
 from matplotlib import cm
