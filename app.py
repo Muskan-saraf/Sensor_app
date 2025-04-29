@@ -26,6 +26,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 from pdf import generate_pdf
+from sklearn.decomposition import PCA
+from matplotlib import cm
 
 # safe_filename
 app = Flask(__name__)
@@ -719,8 +721,7 @@ def download_pdf():
     return send_file(pdf_path, as_attachment=True)
 
     
-from sklearn.decomposition import PCA
-from matplotlib import cm
+
 
 
 
