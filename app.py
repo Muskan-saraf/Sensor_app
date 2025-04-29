@@ -911,27 +911,31 @@ def kpi_clustering():
         # Compute difference from overall mean
         cluster_stats["diff"] = cluster_stats["mean"] - overall_mean
 
-        # Plot: Diverging bar with SD annotation
+        # Plot: Diverging bar with SD annotation (Improved)
         diverging_plot_path = "static/diverging_comparison.png"
         fig, ax = plt.subplots(figsize=(8, 6))
         x_pos = np.arange(len(cluster_stats))
         colors = ['green' if d > 0 else 'red' for d in cluster_stats["diff"]]
 
-        bars = ax.bar(x_pos, cluster_stats["diff"], yerr=cluster_stats["std"], capsize=6,
-                    color=colors, edgecolor='black', alpha=0.8)
+        bars = ax.bar(
+            x_pos, cluster_stats["diff"], yerr=cluster_stats["std"],
+            capsize=6, color=colors, edgecolor='black', alpha=0.8
+        )
 
-        # Annotate bars with diff and SD
+        # Annotate with two lines: diff and std
         for i, (diff, std) in enumerate(zip(cluster_stats["diff"], cluster_stats["std"])):
-            y_offset = 0.05 * (diff if diff != 0 else 1)
-            label = f"{diff:+.2f}\n±{std:.2f}"
-            ax.text(i, diff + y_offset, label, ha='center', fontsize=9, color='black')
+            offset = 2 if diff >= 0 else -2  # base vertical offset
+            spacing = 1.5 if diff >= 0 else -3  # space between lines
+            
+            ax.text(i, diff + offset, f"{diff:+.2f}", ha='center', fontsize=10, color='black')
+            ax.text(i, diff + offset + spacing, f"±{std:.2f}", ha='center', fontsize=9, color='gray')
 
         # Style
         ax.axhline(0, color='black', linewidth=1)
         ax.set_xticks(x_pos)
         ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index])
         ax.set_ylabel("Deviation from Overall Mean ± SD")
-        ax.set_title("Cluster Deviation from Overall Composite Score")
+        ax.set_title("Cluster Deviation from Overall Composite Score (with Std Dev)")
         plt.tight_layout()
         plt.savefig(diverging_plot_path, bbox_inches="tight")
         plt.close()
