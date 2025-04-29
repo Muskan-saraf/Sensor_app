@@ -911,36 +911,34 @@ def kpi_clustering():
         # Compute difference from overall mean
         cluster_stats["diff"] = cluster_stats["mean"] - overall_mean
 
-        # Plot
+        # Plot: Diverging bar with SD annotation
         diverging_plot_path = "static/diverging_comparison.png"
         fig, ax = plt.subplots(figsize=(8, 6))
         x_pos = np.arange(len(cluster_stats))
         colors = ['green' if d > 0 else 'red' for d in cluster_stats["diff"]]
 
-        bars = ax.bar(x_pos, cluster_stats["diff"], color=colors, edgecolor='black')
+        bars = ax.bar(x_pos, cluster_stats["diff"], yerr=cluster_stats["std"], capsize=6,
+                    color=colors, edgecolor='black', alpha=0.8)
 
-        # Annotate bars
-        for i, diff in enumerate(cluster_stats["diff"]):
-            ax.text(i, diff + 0.05 * diff, f"{diff:+.2f}", ha='center', fontsize=10)
+        # Annotate bars with diff and SD
+        for i, (diff, std) in enumerate(zip(cluster_stats["diff"], cluster_stats["std"])):
+            y_offset = 0.05 * (diff if diff != 0 else 1)
+            label = f"{diff:+.2f}\n±{std:.2f}"
+            ax.text(i, diff + y_offset, label, ha='center', fontsize=9, color='black')
 
         # Style
         ax.axhline(0, color='black', linewidth=1)
         ax.set_xticks(x_pos)
         ax.set_xticklabels([f"Cluster {i}" for i in cluster_stats.index])
-        ax.set_ylabel("Deviation from Overall Mean")
+        ax.set_ylabel("Deviation from Overall Mean ± SD")
         ax.set_title("Cluster Deviation from Overall Composite Score")
         plt.tight_layout()
         plt.savefig(diverging_plot_path, bbox_inches="tight")
         plt.close()
 
 
-        # Generate PDF report
-        image_paths = [plot_path, composite_plot_path, comparison_plot_path, diverging_plot_path]
-        pdf_output_path = os.path.join("static", "kpi_clustering_report.pdf")
-        generate_pdf_report(image_paths, profile_html, full_html, pdf_output_path)
 
-        # Send download link to template
-        download_link = "/" + pdf_output_path
+
 
         # Return everything
         return render_template(
@@ -949,13 +947,15 @@ def kpi_clustering():
             mean_std_plot=composite_plot_path,
             cluster_summary=profile_html,
             full_table=full_html,
-            comparison_plot_1=diverging_plot_path,
-            download_link=download_link
+            comparison_plot_1=diverging_plot_path
         )
 
     except Exception as e:
         return f"Unexpected error during clustering: {e}", 500
 
 
+
+
 if __name__ == "__main__":
     app.run(debug=True)
+
