@@ -975,6 +975,79 @@ def kpi_clustering():
         plt.close()
 
 
+        # 📊 Individual Mean ± Std Dev plots for all profile columns
+        profile_col_plots = []
+        for col in profile_cols:
+            import re
+            safe_col_name = re.sub(r'[^A-Za-z0-9_]', '_', col)
+            plot_file = f"static/profile_plot_{safe_col_name}.png"
+
+            
+            stats = full_data.groupby("Cluster")[col].agg(['mean', 'std'])
+            overall_mean = full_data[col].mean()
+            overall_std = full_data[col].std()
+
+            x_pos = np.arange(len(stats))
+
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.errorbar(
+                x_pos, stats["mean"], yerr=stats["std"],
+                fmt='o', capsize=6, color="dodgerblue", markersize=8, label="Cluster Mean ± Std"
+            )
+
+            ax.errorbar(
+                [len(x_pos)], [overall_mean], yerr=[overall_std],
+                fmt='D', color="black", capsize=6, label="Overall", markersize=9, markerfacecolor='white'
+            )
+
+            ax.set_xticks(list(x_pos) + [len(x_pos)])
+            ax.set_xticklabels([f"Cluster {i}" for i in stats.index] + ["Overall"], rotation=0)
+            ax.set_ylabel(f"{col} (Mean ± Std Dev)")
+            ax.set_title(f"{col} by Cluster", fontsize=12)
+            ax.legend()
+            plt.tight_layout()
+            plt.savefig(plot_file, bbox_inches="tight")
+            plt.close()
+
+            profile_col_plots.append({
+                "title": f"{col} by Cluster",
+                "path": plot_file
+            })
+
+
+        # ✅ Combined Profile Score Plot (mean ± std of average profile_cols)
+        full_data["ProfileScore"] = full_data[profile_cols].mean(axis=1)
+        profile_cluster_stats = full_data.groupby("Cluster")["ProfileScore"].agg(['mean', 'std'])
+        overall_profile_mean = full_data["ProfileScore"].mean()
+        overall_profile_std = full_data["ProfileScore"].std()
+
+        profile_combined_plot_path = "static/profile_combined_score.png"
+        fig, ax = plt.subplots(figsize=(8, 6))
+        x_pos = np.arange(len(profile_cluster_stats))
+
+        ax.errorbar(
+            x_pos, profile_cluster_stats["mean"], yerr=profile_cluster_stats["std"],
+            fmt='o', capsize=5, color="dodgerblue", label="Cluster Mean ± Std", markersize=8, linewidth=2
+        )
+
+        ax.errorbar(
+            [len(x_pos)], [overall_profile_mean], yerr=[overall_profile_std],
+            fmt='D', color="black", capsize=6, label="Overall", markersize=9, markerfacecolor='white'
+        )
+
+        ax.set_xticks(list(x_pos) + [len(x_pos)])
+        ax.set_xticklabels([f"Cluster {i}" for i in profile_cluster_stats.index] + ["Overall"], rotation=0)
+        ax.set_ylabel("Profile Score (Mean ± Std Dev)")
+        ax.set_title("Mean ± Std Dev of Combined Profiling Columns", fontsize=13)
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig(profile_combined_plot_path, bbox_inches="tight")
+        plt.close()
+
+            
+
+
+
 
 
 
@@ -989,7 +1062,12 @@ def kpi_clustering():
             comparison_plot_1=diverging_plot_path,
             clustering_columns=cluster_cols,
             elbow_plot=elbow_plot_path,
-            silhouette_plot=silhouette_plot_path
+            silhouette_plot=silhouette_plot_path,
+            profile_col_plots=profile_col_plots,
+            profile_combined_plot=profile_combined_plot_path,
+            profiling_columns=profile_cols
+
+
 
         )
 
