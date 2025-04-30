@@ -1004,7 +1004,6 @@ def kpi_clustering():
             ax.set_xticklabels([f"Cluster {i}" for i in stats.index] + ["Overall"], rotation=0)
             ax.set_ylabel(f"{col} (Mean ± Std Dev)")
             ax.set_title(f"{col} by Cluster", fontsize=12)
-            ax.legend()
             plt.tight_layout()
             plt.savefig(plot_file, bbox_inches="tight")
             plt.close()
@@ -1039,18 +1038,41 @@ def kpi_clustering():
         ax.set_xticklabels([f"Cluster {i}" for i in profile_cluster_stats.index] + ["Overall"], rotation=0)
         ax.set_ylabel("Profile Score (Mean ± Std Dev)")
         ax.set_title("Mean ± Std Dev of Combined Profiling Columns", fontsize=13)
-        ax.legend()
         plt.tight_layout()
         plt.savefig(profile_combined_plot_path, bbox_inches="tight")
         plt.close()
 
-            
+        # 📊 Diverging Plot for Profile Score (Deviation from Overall)
+        profile_cluster_stats["diff"] = profile_cluster_stats["mean"] - overall_profile_mean
+        profile_cluster_stats["std_diff"] = profile_cluster_stats["std"] - overall_profile_std
+        profile_cluster_stats["std_diff_abs"] = profile_cluster_stats["std_diff"].abs()
 
+        profile_deviation_plot_path = "static/profile_deviation_from_overall.png"
+        fig, ax = plt.subplots(figsize=(8, 6))
+        x_pos = np.arange(len(profile_cluster_stats))
+        colors = ['green' if d > 0 else 'red' for d in profile_cluster_stats["diff"]]
 
+        bars = ax.bar(
+            x_pos, profile_cluster_stats["diff"], yerr=profile_cluster_stats["std_diff_abs"],
+            capsize=6, color=colors, edgecolor='black', alpha=0.8
+        )
 
+        # Annotate
+        for i, (diff, std_diff) in enumerate(zip(profile_cluster_stats["diff"], profile_cluster_stats["std_diff"])):
+            offset = 2 if diff >= 0 else -2
+            spacing = 1.5 if diff >= 0 else -3
+            ax.text(i, diff + offset, f"{diff:+.2f}", ha='center', fontsize=10, color='black')
+            ax.text(i, diff + offset + spacing, f"ΔSD: {std_diff:+.2f}", ha='center', fontsize=9, color='gray')
 
-
-
+        # Style
+        ax.axhline(0, color='black', linewidth=1)
+        ax.set_xticks(x_pos)
+        ax.set_xticklabels([f"Cluster {i}" for i in profile_cluster_stats.index])
+        ax.set_ylabel("Deviation from Overall Mean ± ΔSD")
+        ax.set_title("Cluster Deviation from Overall Profile Score")
+        plt.tight_layout()
+        plt.savefig(profile_deviation_plot_path, bbox_inches="tight")
+        plt.close()
 
         # Return everything
         return render_template(
@@ -1065,6 +1087,7 @@ def kpi_clustering():
             silhouette_plot=silhouette_plot_path,
             profile_col_plots=profile_col_plots,
             profile_combined_plot=profile_combined_plot_path,
+            profile_deviation_plot=profile_deviation_plot_path,
             profiling_columns=profile_cols
 
 

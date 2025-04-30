@@ -53,6 +53,19 @@
         .btn-home:hover {
             background-color: #0b5ed7;
         }
+
+        .custom-badge {
+    display: inline-block;
+    padding: 0.4em 0.75em;
+    border: 1px solid ;
+    border-radius: 0.5rem;
+    background-color: white;
+    color: black;
+    font-size: 0.85rem;
+    font-weight: 500;
+    line-height: 1;
+}
+
     </style>
 </head>
 <body>
@@ -86,7 +99,11 @@
 
 
         <h4>Mean ± Standard Deviation of Clustering Columns</h4>
-        <p class="text-muted"><strong>Columns used:</strong> {{ clustering_columns | join(', ') }}</p>
+        <div class="d-flex flex-wrap gap-1 mb-3">
+            {% for col in clustering_columns %}
+                <span class="custom-badge">{{ col }}</span>
+            {% endfor %}
+        </div>
 
         <div class="row">
             <div class="col-md-6">
@@ -98,8 +115,22 @@
         </div>
 
         <h4 class="mt-4">Mean ± Standard Deviation of Profiling Columns</h4>
-        <p class="text-muted"><strong>Columns used:</strong> {{ profiling_columns | join(', ') }}</p>
-        <img src="{{ profile_combined_plot}}" class="img-fluid mb-3" alt="Combined Profiling Summary">
+        <div class="d-flex flex-wrap gap-1 mb-3">
+            {% for col in profiling_columns %}
+                <span class="custom-badge">{{ col }}</span>
+            {% endfor %}
+        </div>
+
+
+        <div class="row">
+            <div class="col-md-6">
+                <img src="{{ profile_combined_plot }}" class="img-fluid" alt="Combined Profiling Summary">
+            </div>
+            <div class="col-md-6">
+                <img src="{{ profile_deviation_plot }}" class="img-fluid" alt="Deviation from Overall Profiling Score">
+            </div>
+        </div>
+        
 
         <!-- Toggle Button -->
         <div class="text-end mb-3">
