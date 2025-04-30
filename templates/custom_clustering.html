@@ -72,13 +72,29 @@
             {{ cluster_summary|safe }}
         </div>
 
-        <h4> Mean ± Standard Deviation of Clustering Columns</h4>
-        <img src="{{ mean_std_plot }}" alt="Mean and Std Plot" class="img-fluid w-100">
+        <h4 class="mt-4">Cluster Evaluation Metrics</h4>
+        <div class="row">
+            <div class="col-md-6">
+                <img src="{{ elbow_plot }}" alt="Elbow Plot" class="img-fluid w-100">
+            </div>
+            <div class="col-md-6">
+                <img src="{{ silhouette_plot }}" alt="Silhouette Plot" class="img-fluid w-100">
+            </div>
+        </div>
 
 
+        <h4>Mean ± Standard Deviation of Clustering Columns</h4>
+        <p class="text-muted"><strong>Columns used:</strong> {{ clustering_columns | join(', ') }}</p>
 
-        <h3>Cluster Comparison to Overall</h3>
-        <img src="{{ comparison_plot_1 }}" class="img-fluid" alt="Cluster vs Overall Plot">
+        <div class="row">
+            <div class="col-md-6">
+                <img src="{{ mean_std_plot }}" alt="Mean and Std Plot" class="img-fluid">
+            </div>
+            <div class="col-md-6">
+                <img src="{{ comparison_plot_1 }}" alt="Cluster vs Overall Plot" class="img-fluid">
+            </div>
+        </div>
+
 
 
 

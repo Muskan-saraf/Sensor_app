@@ -816,6 +816,31 @@ def kpi_clustering():
         cluster_labels = kmeans.fit_predict(X_scaled)
         full_data["Cluster"] = cluster_labels
 
+        # Save Elbow Plot
+        elbow_plot_path = "static/elbow_plot.png"
+        plt.figure(figsize=(6, 4))
+        plt.plot(K_range, inertia, marker='o', linestyle='-', color='dodgerblue')
+        plt.title("Elbow Method (Inertia vs. K)")
+        plt.xlabel("Number of Clusters (K)")
+        plt.ylabel("Inertia")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(elbow_plot_path)
+        plt.close()
+
+        # Save Silhouette Plot
+        silhouette_plot_path = "static/silhouette_plot.png"
+        plt.figure(figsize=(6, 4))
+        plt.plot(K_range, silhouette, marker='s', linestyle='-', color='seagreen')
+        plt.title("Silhouette Score vs. K")
+        plt.xlabel("Number of Clusters (K)")
+        plt.ylabel("Silhouette Score")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.savefig(silhouette_plot_path)
+        plt.close()
+
+
         # Profile A, B, C by cluster
         # Compute profiling summary
         profiling_summary = full_data.groupby("Cluster")[profile_cols].mean().round(2)
@@ -961,7 +986,11 @@ def kpi_clustering():
             mean_std_plot=composite_plot_path,
             cluster_summary=profile_html,
             full_table=full_html,
-            comparison_plot_1=diverging_plot_path
+            comparison_plot_1=diverging_plot_path,
+            clustering_columns=cluster_cols,
+            elbow_plot=elbow_plot_path,
+            silhouette_plot=silhouette_plot_path
+
         )
 
     except Exception as e:
