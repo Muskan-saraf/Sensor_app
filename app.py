@@ -817,7 +817,15 @@ def kpi_clustering():
         full_data["Cluster"] = cluster_labels
 
         # Profile A, B, C by cluster
+        # Compute profiling summary
         profiling_summary = full_data.groupby("Cluster")[profile_cols].mean().round(2)
+
+        # Add % of each cluster
+        cluster_counts = full_data["Cluster"].value_counts().sort_index()
+        total_count = len(full_data)
+        cluster_percentages = (cluster_counts / total_count * 100).round(2)
+        profiling_summary["Cluster %"] = cluster_percentages.values
+
         profile_html = profiling_summary.to_html(classes="table table-bordered")
 
         # Full table (all data + cluster)
