@@ -1074,6 +1074,11 @@ def kpi_clustering():
         plt.savefig(profile_deviation_plot_path, bbox_inches="tight")
         plt.close()
 
+
+        # 🔁 Run filtering and re-clustering on clusters >= 2%
+        filtered_results = rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, scaler)
+
+
         # Return everything
         return render_template(
             "custom_clustering.html",
@@ -1088,7 +1093,17 @@ def kpi_clustering():
             profile_col_plots=profile_col_plots,
             profile_combined_plot=profile_combined_plot_path,
             profile_deviation_plot=profile_deviation_plot_path,
-            profiling_columns=profile_cols
+            profiling_columns=profile_cols,
+            elbow_plot_filtered=filtered_results.get("elbow_plot_filtered"),
+            silhouette_plot_filtered=filtered_results.get("silhouette_plot_filtered"),
+            cluster_plot_filtered=filtered_results.get("cluster_plot_filtered"),
+            mean_std_plot_filtered=filtered_results.get("composite_plot_filtered"),
+            comparison_plot_1_filtered=filtered_results.get("comparison_plot_filtered"),
+            diverging_plot_filtered=filtered_results.get("diverging_plot_filtered"),
+            profile_combined_plot_filtered=filtered_results.get("profile_combined_plot_filtered"),
+            profile_deviation_plot_filtered=filtered_results.get("profile_deviation_plot_filtered"),
+            cluster_summary_filtered=filtered_results.get("cluster_summary_filtered")
+
 
 
 
@@ -1096,6 +1111,189 @@ def kpi_clustering():
 
     except Exception as e:
         return f"Unexpected error during clustering: {e}", 500
+
+
+def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, scaler):
+    import re
+    from sklearn.decomposition import PCA
+
+    # Filter clusters < 2%
+    cluster_counts = full_data["Cluster"].value_counts(normalize=True)
+    valid_clusters = cluster_counts[cluster_counts >= 0.02].index
+    filtered_data = full_data[full_data["Cluster"].isin(valid_clusters)].copy()
+
+    if len(filtered_data) < 10:
+        return {}
+
+    # Re-standardize
+    cluster_df = filtered_data[cluster_cols].dropna()
+    X_filtered_scaled = scaler.fit_transform(cluster_df)
+
+    # Redo elbow & silhouette
+    inertia_f, silhouette_f = [], []
+    K_range_f = range(2, min(10, len(cluster_df)))
+    for k in K_range_f:
+        km = KMeans(n_clusters=k, random_state=42)
+        lbls = km.fit_predict(X_filtered_scaled)
+        inertia_f.append(km.inertia_)
+        silhouette_f.append(silhouette_score(X_filtered_scaled, lbls))
+
+    # Best K using elbow
+    x_f = np.array(list(K_range_f))
+    y_f = np.array(inertia_f)
+    line_vector_f = np.array([x_f[-1] - x_f[0], y_f[-1] - y_f[0]])
+    line_vector_norm_f = line_vector_f / np.linalg.norm(line_vector_f)
+    distances_f = [np.linalg.norm(np.array([x_f[i] - x_f[0], y_f[i] - y_f[0]]) - 
+                   np.dot(np.array([x_f[i] - x_f[0], y_f[i] - y_f[0]]), line_vector_norm_f) * line_vector_norm_f)
+                   for i in range(len(x_f))]
+    best_k_f = x_f[np.argmax(distances_f)]
+
+    # Final clustering
+    kmeans_f = KMeans(n_clusters=best_k_f, random_state=42)
+    filtered_data["Cluster"] = kmeans_f.fit_predict(X_filtered_scaled)
+
+    # Generate plots folder
+    elbow_path = "static/elbow_plot_filtered.png"
+    silhouette_path = "static/silhouette_plot_filtered.png"
+    cluster_plot_path = "static/kpi_cluster_plot_filtered.png"
+    composite_plot_path = "static/composite_mean_std_filtered.png"
+    comparison_plot_path = "static/composite_vs_overall_filtered.png"
+    diverging_plot_path = "static/diverging_comparison_filtered.png"
+    profile_combined_path = "static/profile_combined_score_filtered.png"
+    profile_deviation_path = "static/profile_deviation_from_overall_filtered.png"
+
+    # Save Elbow & Silhouette
+    plt.figure(figsize=(6, 4))
+    plt.plot(K_range_f, inertia_f, marker='o', color='dodgerblue')
+    plt.title("Elbow (Filtered)")
+    plt.savefig(elbow_path)
+    plt.close()
+
+    plt.figure(figsize=(6, 4))
+    plt.plot(K_range_f, silhouette_f, marker='s', color='seagreen')
+    plt.title("Silhouette (Filtered)")
+    plt.savefig(silhouette_path)
+    plt.close()
+
+    # PCA or boxplot
+    if X_filtered_scaled.shape[1] >= 2:
+        pca = PCA(n_components=2)
+        pca_result = pca.fit_transform(X_filtered_scaled)
+        pca_df = pd.DataFrame(pca_result, columns=["PC1", "PC2"])
+        pca_df["Cluster"] = filtered_data["Cluster"]
+
+        plt.figure(figsize=(8, 6))
+        sns.scatterplot(data=pca_df, x="PC1", y="PC2", hue="Cluster", palette="Set2", s=80)
+        plt.title("Cluster Visualization (Filtered)")
+        plt.savefig(cluster_plot_path)
+        plt.close()
+    else:
+        cluster_col = cluster_cols[0]
+        temp_df = filtered_data[[cluster_col, "Cluster"]]
+
+        plt.figure(figsize=(8, 6))
+        sns.boxplot(data=temp_df, x="Cluster", y=cluster_col, palette="Set2")
+        plt.title(f"{cluster_col} by Cluster (Filtered)")
+        plt.savefig(cluster_plot_path)
+        plt.close()
+
+    # Composite Score
+    filtered_data["CompositeScore"] = filtered_data[cluster_cols].mean(axis=1)
+    stats = filtered_data.groupby("Cluster")["CompositeScore"].agg(['mean', 'std'])
+    overall_mean = filtered_data["CompositeScore"].mean()
+    overall_std = filtered_data["CompositeScore"].std()
+
+    x_pos = np.arange(len(stats))
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.errorbar(x_pos, stats["mean"], yerr=stats["std"], fmt='o', capsize=5)
+    ax.errorbar([len(x_pos)], [overall_mean], yerr=[overall_std], fmt='D', color="black")
+    ax.set_xticks(list(x_pos) + [len(x_pos)])
+    ax.set_xticklabels([f"Cluster {i}" for i in stats.index] + ["Overall"])
+    ax.set_title("Composite Score (Filtered)")
+    plt.tight_layout()
+    plt.savefig(composite_plot_path)
+    plt.close()
+
+    # Comparison bar
+    fig, ax = plt.subplots(figsize=(8, 6))
+    bars = ax.bar(x_pos, stats["mean"], yerr=stats["std"], capsize=6, color="skyblue", edgecolor="black")
+    ax.axhline(overall_mean, color='red', linestyle='--')
+    for i, mean in enumerate(stats["mean"]):
+        diff = mean - overall_mean
+        ax.text(i, mean + 0.05 * mean, f"{diff:+.2f}", ha='center')
+    ax.set_title("Cluster Mean vs Overall (Filtered)")
+    plt.tight_layout()
+    plt.savefig(comparison_plot_path)
+    plt.close()
+
+    # Diverging bar
+    stats["diff"] = stats["mean"] - overall_mean
+    stats["std_diff"] = stats["std"] - overall_std
+    stats["std_diff_abs"] = stats["std_diff"].abs()
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    colors = ['green' if d > 0 else 'red' for d in stats["diff"]]
+    ax.bar(x_pos, stats["diff"], yerr=stats["std_diff_abs"], color=colors, capsize=6)
+    for i, (diff, std_diff) in enumerate(zip(stats["diff"], stats["std_diff"])):
+        ax.text(i, diff + 0.5, f"{diff:+.2f}\nΔSD: {std_diff:+.2f}", ha='center')
+    ax.axhline(0, color='black')
+    ax.set_title("Deviation from Overall Composite (Filtered)")
+    plt.tight_layout()
+    plt.savefig(diverging_plot_path)
+    plt.close()
+
+    # Profile Score
+    filtered_data["ProfileScore"] = filtered_data[profile_cols].mean(axis=1)
+    stats_p = filtered_data.groupby("Cluster")["ProfileScore"].agg(['mean', 'std'])
+    overall_p_mean = filtered_data["ProfileScore"].mean()
+    overall_p_std = filtered_data["ProfileScore"].std()
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.errorbar(np.arange(len(stats_p)), stats_p["mean"], yerr=stats_p["std"], fmt='o', capsize=5)
+    ax.errorbar([len(stats_p)], [overall_p_mean], yerr=[overall_p_std], fmt='D', color="black")
+    ax.set_title("Profile Score (Filtered)")
+    plt.tight_layout()
+    plt.savefig(profile_combined_path)
+    plt.close()
+
+    # Profile deviation
+    stats_p["diff"] = stats_p["mean"] - overall_p_mean
+    stats_p["std_diff"] = stats_p["std"] - overall_p_std
+    stats_p["std_diff_abs"] = stats_p["std_diff"].abs()
+
+    fig, ax = plt.subplots(figsize=(8, 6))
+    colors = ['green' if d > 0 else 'red' for d in stats_p["diff"]]
+    ax.bar(np.arange(len(stats_p)), stats_p["diff"], yerr=stats_p["std_diff_abs"], color=colors, capsize=6)
+    for i, (diff, std_diff) in enumerate(zip(stats_p["diff"], stats_p["std_diff"])):
+        ax.text(i, diff + 0.5, f"{diff:+.2f}\nΔSD: {std_diff:+.2f}", ha='center')
+    ax.axhline(0, color='black')
+    ax.set_title("Deviation from Overall Profile Score (Filtered)")
+    plt.tight_layout()
+    plt.savefig(profile_deviation_path)
+    plt.close()
+
+        # ✅ Filtered Cluster Summary Table (exact same as main route)
+    profiling_summary = filtered_data.groupby("Cluster")[profile_cols].mean().round(2)
+
+    cluster_counts = filtered_data["Cluster"].value_counts().sort_index()
+    total_count = len(filtered_data)
+    cluster_percentages = (cluster_counts / total_count * 100).round(2)
+    profiling_summary["Cluster %"] = cluster_percentages.values
+
+    cluster_summary_filtered = profiling_summary.to_html(classes="table table-bordered")
+
+    return {
+        "elbow_plot_filtered": elbow_path,
+        "silhouette_plot_filtered": silhouette_path,
+        "cluster_plot_filtered": cluster_plot_path,
+        "composite_plot_filtered": composite_plot_path,
+        "comparison_plot_filtered": comparison_plot_path,
+        "diverging_plot_filtered": diverging_plot_path,
+        "profile_combined_plot_filtered": profile_combined_path,
+        "profile_deviation_plot_filtered": profile_deviation_path,
+        "cluster_summary_filtered": cluster_summary_filtered
+    }
+
 
 
 
