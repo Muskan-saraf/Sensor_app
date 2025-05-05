@@ -1158,7 +1158,8 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
 
         # Final clustering
         kmeans_f = KMeans(n_clusters=best_k_f, random_state=42)
-        filtered_data["Cluster"] = kmeans_f.fit_predict(X_filtered_scaled)
+        filtered_data["Cluster"] = kmeans_f.fit_predict(X_filtered_scaled).astype(int)
+
 
         # Check for clusters < 1%
         cluster_sizes = filtered_data["Cluster"].value_counts(normalize=True)
@@ -1284,10 +1285,15 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.close()
 
     profiling_summary = filtered_data.groupby("Cluster")[profile_cols].mean().round(2)
+
+    # Add row count and cluster %
     cluster_counts = filtered_data["Cluster"].value_counts().sort_index()
     total_count = len(filtered_data)
     cluster_percentages = (cluster_counts / total_count * 100).round(2)
+
+    profiling_summary["# Rows"] = cluster_counts.values
     profiling_summary["Cluster %"] = cluster_percentages.values
+
 
     cluster_summary_filtered = profiling_summary.to_html(classes="table table-bordered")
 
