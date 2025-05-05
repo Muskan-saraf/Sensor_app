@@ -4,3 +4,6 @@ static/
 temp/
 
 uploads/
+
+
+.env

@@ -29,6 +29,15 @@ from pdf import generate_pdf
 from sklearn.decomposition import PCA
 from matplotlib import cm
 
+from dotenv import load_dotenv
+load_dotenv()
+
+from openai import OpenAI
+import os
+
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
 # safe_filename
 app = Flask(__name__)
 
@@ -267,6 +276,29 @@ def upload_file():
                 Cpk = min((USL - series.mean()) / (3 * sigma), (series.mean() - LSL) / (3 * sigma))
 
                 return round(Cp, 2), round(Cpk, 2)
+            
+
+            def interpret_results_with_llm(column_name, test_metrics):
+                prompt = f"""
+            You are a sensor diagnostic expert. Analyze the following sensor test results and summarize whether the sensor is HEALTHY or UNHEALTHY, and explain why.
+
+            Sensor: {column_name}
+            Test Results:
+            {test_metrics}
+
+            Respond in 1-2 short sentences. Be professional. Start with either "Sensor is Healthy." or "Sensor is Unhealthy."
+            """
+                try:
+                    response = client.chat.completions.create(
+                        model="gpt-4",
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=150,
+                        temperature=0.4
+                    )
+                    return response.choices[0].message.content.strip()
+                except Exception as e:
+                    return f"LLM error: {str(e)}"
+
 
             for col in numeric_cols:
                 
@@ -501,6 +533,22 @@ def upload_file():
                 if Cpk != "Not Enough Data" and Cpk < 1.33:
                     reason.append(f"Low Cpk value: {Cpk} (Process capability issue)")
 
+
+
+                # After all metric columns for this 'col' are populated:
+                test_results = "\n".join([
+                    f"{k}: {results_df.loc[col, k]}"
+                    for k in [
+                        "Missing Values %", "Duplicates %", "Outliers",
+                        "Isolation Forest Anomaly", "One-Class SVM Anomaly",
+                        "Kalman Filter Anomaly", "Cp", "Cpk",
+                        "K-S Statistic", "K-S p-value", 
+                        "Skewness", "Kurtosis", "Distribution Type"
+                    ]
+                ])
+                results_df.loc[col, "LLM_Summary"] = interpret_results_with_llm(col, test_results)
+
+
                 # Immediately mark "Unhealthy" if missing values > 96% or duplicates > 90%
                 if missing_percentage > 96 or duplicate_percentage > 99:
                     results_df.loc[col, "Suggestions"] = "Unhealthy"
@@ -697,7 +745,14 @@ def upload_file():
             return render_template(
                 "report.html",
                 stats_table=stats_table_html,
-                results_table=results_df.to_html(classes="table table-bordered"),
+                results_table=results_df[[
+                    "Missing Values %", "Duplicates %", "Outliers", 
+                    "Isolation Forest Anomaly", "One-Class SVM Anomaly", 
+                    "Kalman Filter Anomaly", "Cp", "Cpk", 
+                    "K-S Statistic", "K-S p-value", 
+                    "Skewness", "Kurtosis", "Distribution Type", 
+                    "Suggestions", "Reason", "LLM_Summary"
+                ]].to_html(classes="table table-bordered"),
                 num_cols=num_cols,
                 cols_per_fig=cols_per_fig,
                 timeseries_plot="static/timeseries_stacked.png",
