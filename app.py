@@ -845,11 +845,14 @@ def kpi_clustering():
         # Compute profiling summary
         profiling_summary = full_data.groupby("Cluster")[profile_cols].mean().round(2)
 
-        # Add % of each cluster
+        # Add cluster count and percentage
         cluster_counts = full_data["Cluster"].value_counts().sort_index()
         total_count = len(full_data)
         cluster_percentages = (cluster_counts / total_count * 100).round(2)
+
+        profiling_summary["# Rows"] = cluster_counts.values
         profiling_summary["Cluster %"] = cluster_percentages.values
+
 
         profile_html = profiling_summary.to_html(classes="table table-bordered")
 
@@ -1114,10 +1117,15 @@ def kpi_clustering():
 
 
 def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, scaler):
-    import re
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import silhouette_score
     from sklearn.decomposition import PCA
 
-    # Filter clusters < 2%
+    # Initial filter: remove original clusters < 2%
     cluster_counts = full_data["Cluster"].value_counts(normalize=True)
     valid_clusters = cluster_counts[cluster_counts >= 0.02].index
     filtered_data = full_data[full_data["Cluster"].isin(valid_clusters)].copy()
@@ -1125,34 +1133,44 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     if len(filtered_data) < 10:
         return {}
 
-    # Re-standardize
-    cluster_df = filtered_data[cluster_cols].dropna()
-    X_filtered_scaled = scaler.fit_transform(cluster_df)
+    while True:
+        cluster_df = filtered_data[cluster_cols].dropna()
+        X_filtered_scaled = scaler.fit_transform(cluster_df)
 
-    # Redo elbow & silhouette
-    inertia_f, silhouette_f = [], []
-    K_range_f = range(2, min(10, len(cluster_df)))
-    for k in K_range_f:
-        km = KMeans(n_clusters=k, random_state=42)
-        lbls = km.fit_predict(X_filtered_scaled)
-        inertia_f.append(km.inertia_)
-        silhouette_f.append(silhouette_score(X_filtered_scaled, lbls))
+        inertia_f, silhouette_f = [], []
+        K_range_f = range(2, min(10, len(cluster_df)))
+        for k in K_range_f:
+            km = KMeans(n_clusters=k, random_state=42)
+            lbls = km.fit_predict(X_filtered_scaled)
+            inertia_f.append(km.inertia_)
+            silhouette_f.append(silhouette_score(X_filtered_scaled, lbls))
 
-    # Best K using elbow
-    x_f = np.array(list(K_range_f))
-    y_f = np.array(inertia_f)
-    line_vector_f = np.array([x_f[-1] - x_f[0], y_f[-1] - y_f[0]])
-    line_vector_norm_f = line_vector_f / np.linalg.norm(line_vector_f)
-    distances_f = [np.linalg.norm(np.array([x_f[i] - x_f[0], y_f[i] - y_f[0]]) - 
-                   np.dot(np.array([x_f[i] - x_f[0], y_f[i] - y_f[0]]), line_vector_norm_f) * line_vector_norm_f)
-                   for i in range(len(x_f))]
-    best_k_f = x_f[np.argmax(distances_f)]
+        # Elbow method
+        x_f = np.array(list(K_range_f))
+        y_f = np.array(inertia_f)
+        line_vector_f = np.array([x_f[-1] - x_f[0], y_f[-1] - y_f[0]])
+        line_vector_norm_f = line_vector_f / np.linalg.norm(line_vector_f)
+        distances_f = [np.linalg.norm(np.array([x_f[i] - x_f[0], y_f[i] - y_f[0]]) -
+                                      np.dot(np.array([x_f[i] - x_f[0], y_f[i] - y_f[0]]),
+                                             line_vector_norm_f) * line_vector_norm_f)
+                       for i in range(len(x_f))]
+        best_k_f = x_f[np.argmax(distances_f)]
 
-    # Final clustering
-    kmeans_f = KMeans(n_clusters=best_k_f, random_state=42)
-    filtered_data["Cluster"] = kmeans_f.fit_predict(X_filtered_scaled)
+        # Final clustering
+        kmeans_f = KMeans(n_clusters=best_k_f, random_state=42)
+        filtered_data["Cluster"] = kmeans_f.fit_predict(X_filtered_scaled)
 
-    # Generate plots folder
+        # Check for clusters < 1%
+        cluster_sizes = filtered_data["Cluster"].value_counts(normalize=True)
+        if (cluster_sizes < 0.01).any():
+            valid_clusters_loop = cluster_sizes[cluster_sizes >= 0.01].index
+            filtered_data = filtered_data[filtered_data["Cluster"].isin(valid_clusters_loop)].copy()
+            if len(filtered_data) < 10 or len(valid_clusters_loop) < 2:
+                return {}
+        else:
+            break
+
+    # Save plots
     elbow_path = "static/elbow_plot_filtered.png"
     silhouette_path = "static/silhouette_plot_filtered.png"
     cluster_plot_path = "static/kpi_cluster_plot_filtered.png"
@@ -1162,7 +1180,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     profile_combined_path = "static/profile_combined_score_filtered.png"
     profile_deviation_path = "static/profile_deviation_from_overall_filtered.png"
 
-    # Save Elbow & Silhouette
     plt.figure(figsize=(6, 4))
     plt.plot(K_range_f, inertia_f, marker='o', color='dodgerblue')
     plt.title("Elbow (Filtered)")
@@ -1175,7 +1192,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.savefig(silhouette_path)
     plt.close()
 
-    # PCA or boxplot
     if X_filtered_scaled.shape[1] >= 2:
         pca = PCA(n_components=2)
         pca_result = pca.fit_transform(X_filtered_scaled)
@@ -1197,7 +1213,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
         plt.savefig(cluster_plot_path)
         plt.close()
 
-    # Composite Score
     filtered_data["CompositeScore"] = filtered_data[cluster_cols].mean(axis=1)
     stats = filtered_data.groupby("Cluster")["CompositeScore"].agg(['mean', 'std'])
     overall_mean = filtered_data["CompositeScore"].mean()
@@ -1214,7 +1229,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.savefig(composite_plot_path)
     plt.close()
 
-    # Comparison bar
     fig, ax = plt.subplots(figsize=(8, 6))
     bars = ax.bar(x_pos, stats["mean"], yerr=stats["std"], capsize=6, color="skyblue", edgecolor="black")
     ax.axhline(overall_mean, color='red', linestyle='--')
@@ -1226,7 +1240,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.savefig(comparison_plot_path)
     plt.close()
 
-    # Diverging bar
     stats["diff"] = stats["mean"] - overall_mean
     stats["std_diff"] = stats["std"] - overall_std
     stats["std_diff_abs"] = stats["std_diff"].abs()
@@ -1242,7 +1255,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.savefig(diverging_plot_path)
     plt.close()
 
-    # Profile Score
     filtered_data["ProfileScore"] = filtered_data[profile_cols].mean(axis=1)
     stats_p = filtered_data.groupby("Cluster")["ProfileScore"].agg(['mean', 'std'])
     overall_p_mean = filtered_data["ProfileScore"].mean()
@@ -1256,7 +1268,6 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.savefig(profile_combined_path)
     plt.close()
 
-    # Profile deviation
     stats_p["diff"] = stats_p["mean"] - overall_p_mean
     stats_p["std_diff"] = stats_p["std"] - overall_p_std
     stats_p["std_diff_abs"] = stats_p["std_diff"].abs()
@@ -1272,9 +1283,7 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
     plt.savefig(profile_deviation_path)
     plt.close()
 
-        # ✅ Filtered Cluster Summary Table (exact same as main route)
     profiling_summary = filtered_data.groupby("Cluster")[profile_cols].mean().round(2)
-
     cluster_counts = filtered_data["Cluster"].value_counts().sort_index()
     total_count = len(filtered_data)
     cluster_percentages = (cluster_counts / total_count * 100).round(2)
