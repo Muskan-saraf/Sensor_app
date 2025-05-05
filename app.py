@@ -819,6 +819,9 @@ def generate_pdf_report(image_paths, profile_html, full_html, output_path):
 def kpi_clustering():
     cluster_cols = request.form.getlist("cluster_cols")  # D
     profile_cols = request.form.getlist("profile_cols")  # A, B, C
+    manual_k = request.form.get("manual_k")
+    manual_k = int(manual_k) if manual_k and manual_k.isdigit() and int(manual_k) >= 2 else None
+
 
     if not cluster_cols or not profile_cols:
         return "Error: Please select at least one clustering column and profiling column.", 400
@@ -843,57 +846,64 @@ def kpi_clustering():
         scaler = StandardScaler()
         X_scaled = scaler.fit_transform(cluster_df)
 
-        # Determine best K (elbow + silhouette)
-        inertia, silhouette = [], []
-        K_range = range(2, min(10, len(cluster_df)))
-        for k in K_range:
-            kmeans = KMeans(n_clusters=k, random_state=42)
-            labels = kmeans.fit_predict(X_scaled)
-            inertia.append(kmeans.inertia_)
-            silhouette.append(silhouette_score(X_scaled, labels))
+        if manual_k:
+            best_k = manual_k
+            elbow_plot_path = None
+            silhouette_plot_path = None
+        else:
+            inertia, silhouette = [], []
+            K_range = range(2, min(10, len(cluster_df)))
+            for k in K_range:
+                kmeans = KMeans(n_clusters=k, random_state=42)
+                labels = kmeans.fit_predict(X_scaled)
+                inertia.append(kmeans.inertia_)
+                silhouette.append(silhouette_score(X_scaled, labels))
 
-        # Elbow method
-        x = np.array(list(K_range))
-        y = np.array(inertia)
-        line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
-        line_vector_norm = line_vector / np.linalg.norm(line_vector)
-        distances = []
-        for i in range(len(x)):
-            point = np.array([x[i] - x[0], y[i] - y[0]])
-            proj_len = np.dot(point, line_vector_norm)
-            proj = proj_len * line_vector_norm
-            dist = np.linalg.norm(point - proj)
-            distances.append(dist)
-        best_k = x[np.argmax(distances)]
+            # Elbow method
+            x = np.array(list(K_range))
+            y = np.array(inertia)
+            line_vector = np.array([x[-1] - x[0], y[-1] - y[0]])
+            line_vector_norm = line_vector / np.linalg.norm(line_vector)
+            distances = []
+            for i in range(len(x)):
+                point = np.array([x[i] - x[0], y[i] - y[0]])
+                proj_len = np.dot(point, line_vector_norm)
+                proj = proj_len * line_vector_norm
+                dist = np.linalg.norm(point - proj)
+                distances.append(dist)
+            best_k = x[np.argmax(distances)]
 
-        # Final clustering
+            # Save Elbow Plot
+            elbow_plot_path = "static/elbow_plot.png"
+            plt.figure(figsize=(6, 4))
+            plt.plot(K_range, inertia, marker='o', linestyle='-', color='dodgerblue')
+            plt.title("Elbow Method (Inertia vs. K)")
+            plt.xlabel("Number of Clusters (K)")
+            plt.ylabel("Inertia")
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(elbow_plot_path)
+            plt.close()
+
+            # Save Silhouette Plot
+            silhouette_plot_path = "static/silhouette_plot.png"
+            plt.figure(figsize=(6, 4))
+            plt.plot(K_range, silhouette, marker='s', linestyle='-', color='seagreen')
+            plt.title("Silhouette Score vs. K")
+            plt.xlabel("Number of Clusters (K)")
+            plt.ylabel("Silhouette Score")
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(silhouette_plot_path)
+            plt.close()
+
+
+        # Final clustering step
         kmeans = KMeans(n_clusters=best_k, random_state=42)
         cluster_labels = kmeans.fit_predict(X_scaled)
         full_data["Cluster"] = cluster_labels
 
-        # Save Elbow Plot
-        elbow_plot_path = "static/elbow_plot.png"
-        plt.figure(figsize=(6, 4))
-        plt.plot(K_range, inertia, marker='o', linestyle='-', color='dodgerblue')
-        plt.title("Elbow Method (Inertia vs. K)")
-        plt.xlabel("Number of Clusters (K)")
-        plt.ylabel("Inertia")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(elbow_plot_path)
-        plt.close()
 
-        # Save Silhouette Plot
-        silhouette_plot_path = "static/silhouette_plot.png"
-        plt.figure(figsize=(6, 4))
-        plt.plot(K_range, silhouette, marker='s', linestyle='-', color='seagreen')
-        plt.title("Silhouette Score vs. K")
-        plt.xlabel("Number of Clusters (K)")
-        plt.ylabel("Silhouette Score")
-        plt.grid(True)
-        plt.tight_layout()
-        plt.savefig(silhouette_plot_path)
-        plt.close()
 
 
         # Profile A, B, C by cluster

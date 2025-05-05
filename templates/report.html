@@ -222,6 +222,16 @@
                 {% endfor %}
             </div>
 
+            <!-- Manual K input -->
+            <hr class="my-4">
+            <h5 class="text-info">🔢 Optional: Specify Number of Clusters (K)</h5>
+            <div class="row justify-content-center">
+                <div class="col-md-4">
+                    <input type="number" name="manual_k" class="form-control" placeholder="Leave empty for auto selection" min="2">
+                    <small class="form-text text-muted">Enter a number ≥ 2 to manually set K. Leave blank for automatic selection.</small>
+                </div>
+            </div>
+
             <!-- Submit -->
             <div class="text-center mt-4">
                 <button type="submit" class="btn btn-primary btn-lg px-4">
@@ -238,6 +248,10 @@ function toggleCheckboxes(groupName, state) {
     const checkboxes = document.querySelectorAll(`input[name="${groupName}"]`);
     checkboxes.forEach(cb => cb.checked = state);
 }
+
+
+
+
 </script>
 
 
