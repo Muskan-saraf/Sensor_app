@@ -899,12 +899,10 @@ def kpi_clustering():
 
 
         # Final clustering step
+
         kmeans = KMeans(n_clusters=best_k, random_state=42)
         cluster_labels = kmeans.fit_predict(X_scaled)
         full_data["Cluster"] = cluster_labels
-
-
-
 
         # Profile A, B, C by cluster
         # Compute profiling summary
