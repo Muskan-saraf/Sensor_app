@@ -78,7 +78,6 @@ def generate_pdf():
         model_stability_df = pd.read_pickle(stability_result_path)
         render_table_to_pdf(pdf, model_stability_df, "Model Stability Summary")
 
-
     # === 7. Plots ===
     # image_plots = [
         
