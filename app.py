@@ -110,8 +110,8 @@ def upload_file():
                     
                 else:
                     return "Error: Unsupported file type. Please upload a CSV or Excel file.", 400
-                
-                df.columns = df.columns.str.strip().str.replace('\n', '', regex=False)
+
+
                 
             except Exception as e:
                 return f"Error while reading the file: {str(e)}", 400
@@ -129,21 +129,24 @@ def upload_file():
 
             # Step 1: Detect frequency using the first column (assumed time)
             time_col = df.columns[0]  # First column is assumed to be time
+            freq_seconds = None
             inferred_freq = "Unknown"
+
             try:
                 df[time_col] = pd.to_datetime(df[time_col])
                 df = df.sort_values(by=time_col)
                 time_diffs = df[time_col].diff().dropna()
                 most_common_diff = time_diffs.mode()[0]
-
                 freq_seconds = most_common_diff.total_seconds()
+            except Exception:
+                pass  # silently ignore frequency inference errors
 
-            except Exception as e:
-                inferred_freq = "Unknown"
+            # Step 2: Add Frequency column only if frequency was successfully inferred
+            if freq_seconds is not None:
+                stats_table["Frequency"] = freq_seconds
+            else:
+                stats_table["Frequency"] = "N/A"
 
-            # Step 3: Add Frequency row to stats_table (as a new summary row)
-            # Add 'Frequency' as a new column (not a row!)
-            stats_table["Frequency"] = freq_seconds
  
             stats_table = stats_table.rename(columns={"std": "Standard Deviation", "50%": "Median"})
 
@@ -817,10 +820,12 @@ def generate_pdf_report(image_paths, profile_html, full_html, output_path):
 
 @app.route("/kpi_clustering", methods=["POST"])
 def kpi_clustering():
-    cluster_cols = request.form.getlist("cluster_cols")  # D
-    profile_cols = request.form.getlist("profile_cols")  # A, B, C
+
     manual_k = request.form.get("manual_k")
     manual_k = int(manual_k) if manual_k and manual_k.isdigit() and int(manual_k) >= 2 else None
+    cluster_cols = request.form.getlist("cluster_cols")
+    profile_cols = request.form.getlist("profile_cols")
+
 
 
     if not cluster_cols or not profile_cols:
@@ -830,8 +835,32 @@ def kpi_clustering():
         # Load the uploaded file
         file_path = os.path.join(UPLOAD_FOLDER, os.listdir(UPLOAD_FOLDER)[0])
         ext = os.path.splitext(file_path)[1].lower()
-        df = pd.read_csv(file_path) if ext == ".csv" else pd.read_excel(file_path)
-        df.columns = df.columns.str.replace('\n', '', regex=False)
+        # Load file without modifying column names
+        df = pd.read_csv(file_path, dtype=str) if ext == ".csv" else pd.read_excel(file_path, dtype=str)
+        df = df.apply(pd.to_numeric, errors='ignore')  # convert numeric columns back if needed
+
+        # Map form inputs to exact matches in df.columns
+        user_cluster_cols = request.form.getlist("cluster_cols")
+        user_profile_cols = request.form.getlist("profile_cols")
+
+        actual_columns = df.columns.tolist()
+
+        # Match based on stripped name (ignoring whitespace issues)
+        cluster_cols = [col for col in actual_columns if col.strip() in [c.strip() for c in user_cluster_cols]]
+        profile_cols = [col for col in actual_columns if col.strip() in [p.strip() for p in user_profile_cols]]
+
+        # Error if mismatch
+        if not cluster_cols or not profile_cols:
+            return (
+                f"Error: Column mismatch.\nSelected clustering: {user_cluster_cols}\n"
+                f"Selected profiling: {user_profile_cols}\nAvailable columns: {actual_columns}", 400
+    )
+
+
+    
+
+
+
 
         # Drop NA from clustering columns
         cluster_df = df[cluster_cols].dropna()
@@ -896,7 +925,6 @@ def kpi_clustering():
             plt.tight_layout()
             plt.savefig(silhouette_plot_path)
             plt.close()
-
 
         # Final clustering step
 
@@ -1378,4 +1406,3 @@ def rerun_clustering_on_filtered_data(full_data, cluster_cols, profile_cols, sca
 
 if __name__ == "__main__":
     app.run(debug=True)
-
