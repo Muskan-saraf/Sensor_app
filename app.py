@@ -281,11 +281,13 @@ def upload_file():
                 return round(Cp, 2), round(Cpk, 2)
             
 
-            def interpret_results_with_llm(column_name, test_metrics):
+            def interpret_results_with_llm(column_name, test_metrics, total_rows):
+
                 prompt = f"""
             You are a sensor diagnostic expert. Analyze the following sensor test results and summarize whether the sensor is HEALTHY or UNHEALTHY, and explain why.
 
             Sensor: {column_name}
+            Total Number of Rows: {total_rows}
             Test Results:
             {test_metrics}
 
@@ -536,6 +538,9 @@ def upload_file():
                 if Cpk != "Not Enough Data" and Cpk < 1.33:
                     reason.append(f"Low Cpk value: {Cpk} (Process capability issue)")
 
+                total_rows = len(df)
+
+
 
 
                 # After all metric columns for this 'col' are populated:
@@ -549,7 +554,8 @@ def upload_file():
                         "Skewness", "Kurtosis", "Distribution Type"
                     ]
                 ])
-                results_df.loc[col, "LLM_Summary"] = interpret_results_with_llm(col, test_results)
+                results_df.loc[col, "LLM_Summary"] = interpret_results_with_llm(col, test_results, len(df))
+
 
 
                 # Immediately mark "Unhealthy" if missing values > 96% or duplicates > 90%
