@@ -464,7 +464,6 @@ def upload_file():
                 first_half_clean = first_half[col].dropna()
                 second_half_clean = second_half[col].dropna()
                 
-                
                 if first_half_clean.count() > 10 and second_half_clean.count() > 10:
                      first_half_normalized = zscore(first_half_clean)
                      second_half_normalized = zscore(second_half_clean)
