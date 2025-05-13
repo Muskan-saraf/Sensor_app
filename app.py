@@ -357,18 +357,23 @@ def upload_file():
                 col_data = df[col].dropna()
                 if len(col_data) > 10:
                     if col_data.nunique() > 1:  # Ensure there are at least two unique values
-                          skewness = skew(col_data)
-                          kurt = kurtosis(col_data)
-                    else:
-                          skewness, kurt = "Not Enough Data", "Not Enough Data"
-                          
-                    results_df.loc[col, "Skewness"] = round(skewness, 3) if isinstance(skewness, float) else skewness
-                    results_df.loc[col, "Kurtosis"] = round(kurt, 3) if isinstance(kurt, float) else kurt
+                        skewness = skew(col_data)
+                        kurt = kurtosis(col_data)
 
-                    if col_data.nunique() > 1:
-                          shapiro_stat, shapiro_p = shapiro(col_data)
+                        # 📉 Sample down if too many rows (Shapiro test limit)
+                        if len(col_data) > 5000:
+                            sample_data = col_data.sample(n=5000, random_state=42)
+                        else:
+                            sample_data = col_data
+
+                        try:
+                            shapiro_stat, shapiro_p = shapiro(sample_data)
+                        except Exception:
+                            shapiro_p = "Error"
                     else:
-                          shapiro_p = "Not Enough Data"  
+                        skewness, kurt = "Not Enough Data", "Not Enough Data"
+                        shapiro_p = "Not Enough Data"
+ 
                         
 
 
@@ -456,7 +461,7 @@ def upload_file():
                 results_df.loc[col, "Reason"] = "; ".join(reason) if reason else "No significant issues detected."
 
                 # Drift Detection
-                # already inside `for col in numeric_cols:` loop
+                # already inside `for col in numeric_cols:` loo
                 # # so directly use
                 first_half = df.iloc[:len(df)//2]
                 second_half = df.iloc[len(df)//2:]
