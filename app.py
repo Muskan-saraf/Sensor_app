@@ -373,9 +373,6 @@ def upload_file():
                     else:
                         skewness, kurt = "Not Enough Data", "Not Enough Data"
                         shapiro_p = "Not Enough Data"
- 
-                        
-
 
                     # Check if we have enough numerical data before classification
                     if isinstance(shapiro_p, float) and isinstance(skewness, float) and isinstance(kurt, float):
